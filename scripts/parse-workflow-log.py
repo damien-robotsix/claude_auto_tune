@@ -13,11 +13,40 @@ Usage:
 import json
 import sys
 import os
+import pathlib
 
 try:
     import anthropic
 except ImportError:
     sys.exit("anthropic package not found. Run: pip install anthropic")
+
+# Canonical latest versions for short aliases
+_MODEL_ALIASES = {
+    "haiku": "claude-haiku-4-5-20251001",
+    "sonnet": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-6",
+}
+
+
+def _resolve_model(name: str) -> str:
+    """Return the full model ID for a short alias, or the name as-is."""
+    return _MODEL_ALIASES.get(name.lower(), name)
+
+
+def _load_config() -> dict:
+    """Load auto_tune_config.yml from the repo root (two levels up from scripts/)."""
+    config_path = pathlib.Path(__file__).parent.parent / "auto_tune_config.yml"
+    if not config_path.exists():
+        return {}
+    try:
+        import yaml
+        return yaml.safe_load(config_path.read_text()) or {}
+    except Exception:
+        return {}
+
+
+_CONFIG = _load_config()
+_LOG_PARSER_CFG = _CONFIG.get("log_parser", {})
 
 
 SYSTEM_PROMPT = """You are an expert at analyzing Claude Code AI agent workflow logs.
@@ -58,7 +87,7 @@ Log:
 
 # Truncate logs to avoid token limits — Haiku context window is 200k but we
 # keep it lean to stay cheap. Middle sections of logs tend to be noise.
-MAX_LOG_CHARS = 40_000
+MAX_LOG_CHARS = int(_LOG_PARSER_CFG.get("max_log_chars", 40_000))
 
 
 def truncate_log(log: str) -> str:
@@ -78,8 +107,9 @@ def parse_log(log_content: str) -> dict:
     truncated = truncate_log(log_content)
     prompt = EXTRACT_PROMPT.format(log_content=truncated)
 
+    _alias = _CONFIG.get("models", {}).get("log_parser", "haiku")
     message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=_resolve_model(_alias),
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],

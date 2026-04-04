@@ -1,0 +1,24 @@
+# auto_tune workspace configuration
+#
+# Model aliases: use "haiku", "sonnet", or "opus" to automatically resolve
+# to the latest pinned version of that model family.
+# You may also specify a full model ID (e.g. "claude-sonnet-4-6") to pin
+# to a specific version.
+
+models:
+  # Model used by the main claude.yml workflow
+  claude_code: "sonnet"
+  # Model used by the code-review workflow
+  code_review: "sonnet"
+  # Model used by the auto-improve workflow
+  auto_improve: "sonnet"
+  # Model used by the log/transcript parsing scripts (cheaper, fast)
+  log_parser: "haiku"
+
+auto_improve:
+  default_run_count: 20
+  schedule: "0 3 * * 0"
+
+log_parser:
+  max_log_chars: 40000
+  max_summary_chars: 30000
