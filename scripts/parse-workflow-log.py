@@ -37,17 +37,17 @@ Be concise and specific. Each insight should be immediately actionable.
 EXTRACT_PROMPT = """Analyze this GitHub Actions workflow log from a Claude Code run.
 
 Extract improvement opportunities as JSON with this exact structure:
-{
+{{
   "summary": "<one sentence summary of what this workflow run did>",
   "insights": [
-    {
+    {{
       "category": "<one of: new_workflow | deterministic_script | subagent_skill | cost_reduction | reliability>",
       "title": "<short title>",
       "description": "<specific actionable description>",
       "priority": "<high | medium | low>"
-    }
+    }}
   ]
-}
+}}
 
 Only include insights with clear evidence from the log. Return valid JSON only.
 
