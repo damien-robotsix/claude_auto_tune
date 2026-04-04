@@ -26,17 +26,11 @@ try:
 except ImportError:
     sys.exit("anthropic package not found. Run: pip install anthropic")
 
-# Canonical latest versions for short aliases
-_MODEL_ALIASES = {
+_DEFAULT_MODEL_ALIASES = {
     "haiku": "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-4-6",
     "opus": "claude-opus-4-6",
 }
-
-
-def _resolve_model(name: str) -> str:
-    """Return the full model ID for a short alias, or the name as-is."""
-    return _MODEL_ALIASES.get(name.lower(), name)
 
 
 def _load_config() -> dict:
@@ -53,6 +47,16 @@ def _load_config() -> dict:
 
 _CONFIG = _load_config()
 _LOG_PARSER_CFG = _CONFIG.get("log_parser", {})
+
+
+def _resolve_model(name: str) -> str:
+    """Return the full model ID for a short alias, or the name as-is.
+
+    Aliases are read from ``model_aliases`` in auto_tune_config.yml; the
+    built-in defaults are used when that section is absent.
+    """
+    aliases = _CONFIG.get("model_aliases", _DEFAULT_MODEL_ALIASES)
+    return aliases.get(name.lower(), name)
 
 
 SYSTEM_PROMPT = """You are an expert at analyzing Claude Code AI agent session transcripts.

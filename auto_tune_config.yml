@@ -7,13 +7,20 @@
 
 models:
   # Model used by the main claude.yml workflow
-  claude_code: "sonnet"
+  claude_code: "opus"
   # Model used by the code-review workflow
-  code_review: "sonnet"
+  code_review: "opus"
   # Model used by the auto-improve workflow
-  auto_improve: "sonnet"
+  auto_improve: "opus"
   # Model used by the log/transcript parsing scripts (cheaper, fast)
   log_parser: "haiku"
+
+# Alias → full model ID mapping. Update here when new versions are released.
+# Scripts fall back to these built-in defaults if this section is absent.
+model_aliases:
+  haiku: "claude-haiku-4-5-20251001"
+  sonnet: "claude-sonnet-4-6"
+  opus: "claude-opus-4-6"
 
 auto_improve:
   default_run_count: 20
