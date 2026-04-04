@@ -1,0 +1,71 @@
+name: Auto-Improvement Agent
+
+on:
+  schedule:
+    # Runs every Sunday at 03:00 UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      run_count:
+        description: 'Number of recent workflow runs to analyze (default: 20)'
+        required: false
+        default: '20'
+
+jobs:
+  auto-improve:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Auto-Improvement Agent
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          additional_permissions: |
+            actions: read
+
+          prompt: |
+            Read the file `scripts/auto-improve-prompt.md` — it contains your
+            full instructions for the auto-improvement task.
+
+            Run count: ${{ github.event.inputs.run_count || '20' }}
+            Today's date: $(date +%Y-%m-%d)
+
+            After completing the analysis and creating proposals, create a new
+            branch named `auto-improve/$(date +%Y-%m-%d)`, commit all files
+            under `proposals/`, and open a PR against `main`. Reference issue #2
+            in the PR body.
+
+          claude_args: >-
+            --allowed-tools
+            Bash(gh api:*),
+            Bash(gh run:*),
+            Bash(git *),
+            Bash(pip install*),
+            Bash(python3 *),
+            Bash(mkdir *),
+            Bash(cat *),
+            Bash(echo *),
+            Read,
+            Write,
+            Glob
+
+      - name: Upload Claude session transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-transcript
+          path: ~/.claude/projects/**/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
