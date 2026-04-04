@@ -19,9 +19,9 @@ jobs:
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write # Required for Claude to create branches and push commits
+      pull-requests: write # Required for Claude to open pull requests
+      issues: write # Required for Claude to comment on issues
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
@@ -43,10 +43,35 @@ jobs:
           # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
           # prompt: 'Update the pull request description to include a summary of changes.'
 
-          # Optional: Add claude_args to customize behavior and configuration
+          # Allow Claude to create branches, commit, push, and open PRs without
+          # per-action interactive approval prompts.
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr:*)'
+          claude_args: >-
+            --allowed-tools
+            Bash(git checkout:*),
+            Bash(git switch:*),
+            Bash(git branch:*),
+            Bash(git add:*),
+            Bash(git commit:*),
+            Bash(git push:*),
+            Bash(git fetch:*),
+            Bash(git pull:*),
+            Bash(git status:*),
+            Bash(git diff:*),
+            Bash(git log:*),
+            Bash(git restore:*),
+            Bash(git rm:*),
+            Bash(git mv:*),
+            Bash(gh pr:*),
+            Bash(gh issue:*),
+            Bash(gh api:*),
+            Bash(gh run:*),
+            Read,
+            Write,
+            Edit,
+            Glob,
+            Grep
 
       - name: Upload Claude session transcript
         if: always()
