@@ -1,0 +1,9 @@
+# Claude local state (persisted via Docker volumes)
+.claude-home/
+.claude/settings.local.json
+
+# Environment and secrets
+.env
+.env.*
+*.key
+*.pem
