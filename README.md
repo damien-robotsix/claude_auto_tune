@@ -14,10 +14,10 @@ This builds and runs Claude in a Docker container with `--dangerously-skip-permi
 
 ### CI (GitHub Actions)
 
-First, authenticate with GitHub:
+First, authenticate with GitHub (with the required scopes):
 
 ```bash
-gh auth login
+gh auth login -h github.com -s repo,workflow
 ```
 
 Then, from inside Claude Code CLI:
