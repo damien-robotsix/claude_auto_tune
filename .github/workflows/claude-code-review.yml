@@ -43,3 +43,12 @@ jobs:
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
+      - name: Upload Claude session transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-transcript
+          path: ~/.claude/projects/**/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+

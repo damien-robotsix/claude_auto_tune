@@ -48,3 +48,12 @@ jobs:
           # or https://code.claude.com/docs/en/cli-reference for available options
           # claude_args: '--allowed-tools Bash(gh pr:*)'
 
+      - name: Upload Claude session transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-transcript
+          path: ~/.claude/projects/**/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
+
