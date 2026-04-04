@@ -22,12 +22,16 @@ For each run ID, fetch its logs and pipe through the Haiku parser:
 
 ```bash
 pip install -q anthropic
+WORKFLOWS_PARSED=0
 for RUN_ID in $RUN_IDS; do
   echo "=== Parsing run $RUN_ID ==="
   gh run view "$RUN_ID" --log 2>/dev/null \
     | python3 scripts/parse-workflow-log.py \
     >> /tmp/all-insights.jsonl || echo '{"summary":"fetch failed","insights":[]}' >> /tmp/all-insights.jsonl
+  WORKFLOWS_PARSED=$((WORKFLOWS_PARSED + 1))
 done
+echo ""
+echo ">>> Workflows parsed: $WORKFLOWS_PARSED"
 ```
 
 Each line in `/tmp/all-insights.jsonl` is the JSON output for one run.
@@ -41,6 +45,7 @@ transcript-upload step (see **Workflow Setup** below).
 For each run ID, download the `claude-transcript` artifact and parse it:
 
 ```bash
+CONVERSATIONS_ANALYZED=0
 for RUN_ID in $RUN_IDS; do
   echo "=== Fetching transcript for run $RUN_ID ==="
   ARTIFACT_ID=$(gh api repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts \
@@ -57,10 +62,13 @@ for RUN_ID in $RUN_IDS; do
       >> /tmp/all-transcript-insights.jsonl \
       || echo '{"summary":"parse failed","tool_call_count":0,"top_tools":[],"insights":[]}' \
          >> /tmp/all-transcript-insights.jsonl
+    CONVERSATIONS_ANALYZED=$((CONVERSATIONS_ANALYZED + 1))
   else
     echo "No transcript artifact for run $RUN_ID (workflow may predate transcript upload step)"
   fi
 done
+echo ""
+echo ">>> Conversations analyzed: $CONVERSATIONS_ANALYZED"
 ```
 
 Each line in `/tmp/all-transcript-insights.jsonl` is the JSON output for one
@@ -85,6 +93,23 @@ action must include an upload step immediately after the action step:
 
 If this step is missing from the active workflows, add a proposal for it under
 `proposals/workflows/` and note it in the PR body.
+
+## Pipeline Summary
+
+Before synthesizing, print a quick sanity check:
+
+```bash
+WORKFLOWS_PARSED=$(wc -l < /tmp/all-insights.jsonl 2>/dev/null || echo 0)
+CONVERSATIONS_ANALYZED=$(wc -l < /tmp/all-transcript-insights.jsonl 2>/dev/null || echo 0)
+echo "============================================"
+echo "  Pipeline summary"
+echo "  Workflows parsed:        $WORKFLOWS_PARSED"
+echo "  Conversations analyzed:  $CONVERSATIONS_ANALYZED"
+echo "============================================"
+```
+
+If both counts are 0, stop here and report the issue (no runs found, permissions
+problem, etc.) rather than opening an empty PR.
 
 ## Step 4 — Synthesize insights
 
@@ -124,7 +149,7 @@ Create a branch `auto-improve/<date>`, commit the proposals, and open a PR with:
 - Title: `chore: auto-improvement proposals <date>`
 - Body: a table listing each proposal, its category, and the evidence from logs
 - Reference this issue (#2) in the PR body
-- Note whether transcript data was available and how many sessions were analyzed
+- Include the pipeline summary counts: `Workflows parsed: N`, `Conversations analyzed: N`
 
 Keep the PR focused: include only proposals backed by at least 2 observed instances
 or 1 high-confidence instance with strong evidence.
