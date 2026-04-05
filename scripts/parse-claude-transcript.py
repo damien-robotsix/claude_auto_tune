@@ -119,14 +119,17 @@ def extract_tool_calls(lines: list[str]) -> dict:
         except json.JSONDecodeError:
             continue
 
-        role = entry.get("role", "")
-        content = entry.get("content", [])
+        # Claude Code JSONL wraps messages: {"type": "assistant", "message": {...}}
+        # Fall back to top-level role/content for older formats.
+        msg = entry.get("message", entry)
+        role = msg.get("role", entry.get("type", ""))
+        content = msg.get("content", [])
 
         if isinstance(content, str):
             content = [{"type": "text", "text": content}]
 
         # Extract usage from assistant messages
-        usage = entry.get("usage") or entry.get("message", {}).get("usage", {})
+        usage = msg.get("usage") or entry.get("usage", {})
         if usage:
             total_input_tokens += usage.get("input_tokens", 0)
             total_output_tokens += usage.get("output_tokens", 0)
