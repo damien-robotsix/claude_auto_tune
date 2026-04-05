@@ -31,6 +31,15 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Inject CI sandbox rules into CLAUDE.md
+        # CI-only prompt injection. Keeps docs/ci-sandbox-rules.md as the
+        # single source of truth while leaving CLAUDE.md clean for local
+        # (Docker / IDE) runs that don't hit the allowlist or sandbox.
+        # Fixes the recurring pattern tracked in issues #27, #28, #29.
+        run: |
+          printf '\n\n' >> CLAUDE.md
+          cat docs/ci-sandbox-rules.md >> CLAUDE.md
+
       - name: Resolve model from auto_tune_config.yml
         id: model
         run: |

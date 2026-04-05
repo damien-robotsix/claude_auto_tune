@@ -34,12 +34,11 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 - When something fails or needs rework, capture the lesson so the pattern is not repeated
 - Prefer simple, direct solutions over abstractions until a pattern repeats
 
-## CI sandbox — Bash command rules
-
-When running inside `anthropics/claude-code-action@v1` (the claude.yml,
-claude-code-review.yml, and auto-improve.yml workflows), Bash tool calls
-are restricted by an allowlist and a sandbox. Before issuing non-trivial
-Bash commands in CI, read [`docs/ci-sandbox-rules.md`](docs/ci-sandbox-rules.md)
-— it documents the exact harness error strings and the concrete
-workarounds for each failure mode (multi-operation pipelines, output
-redirection, `2>&1`, `gh` URL-style arguments, and workflow-file pushes).
+<!--
+CI-sandbox Bash rules (allowlist, no multi-op pipes, no /tmp redirection,
+no 2>&1, literal gh args, read-only workflow files) live in
+docs/ci-sandbox-rules.md and are appended to this file at runtime by the
+CI workflows (.github/workflows/claude*.yml, auto-improve.yml). They are
+intentionally not inlined here so local runs stay free of CI-only
+guardrails.
+-->
