@@ -27,10 +27,13 @@ Design invariants
 - **Idempotent.** Files already present in the hub with the same
   ``session-id.jsonl`` name are skipped. Running the script twice in a
   row is a no-op.
-- **Opt-in.** If ``hub.enabled`` is false or
-  ``hub.local_transcripts.enabled`` is absent/false in
-  ``auto_tune_config.yml``, the script exits 0 without touching
-  anything. Safe to wire unconditionally into ``run.sh``.
+- **Opt-in via config, unconditional in invocation.** If
+  ``hub.enabled`` is false or ``hub.local_transcripts.enabled`` is
+  absent/false in ``auto_tune_config.yml``, the script exits 0
+  without touching anything. ``run.sh`` calls this script after every
+  local Docker session unconditionally — the config file is the
+  single source of truth, so enabling the lane is a one-line config
+  change, not a wiring change.
 - **Redaction on by default.** Lines matching common secret patterns or
   containing ``$HOME``-prefixed absolute paths are scrubbed before
   upload. ``--no-redact`` disables this (discouraged, even for a
