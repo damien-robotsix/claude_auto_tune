@@ -38,22 +38,21 @@ Scripts fall back to built-in defaults if this section is missing.
 
 ```yaml
 auto_improve:
-  default_run_count: 20
+  default_conversation_limit: 20
   schedule: "0 3 * * 0"
 ```
 
-- `default_run_count` — how many past runs the auto-improve workflow considers in a single pass.
+- `default_conversation_limit` — maximum number of Claude Code session transcripts the auto-improve workflow analyzes in a single pass. Workflow logs are always parsed in full (no cap).
 - `schedule` — cron expression (UTC) used by the scheduled workflow trigger.
 
-## Log parser limits
+## Issue tracking
 
 ```yaml
-log_parser:
-  max_log_chars: 40000
-  max_summary_chars: 30000
+tracking:
+  verify_runs: 2
 ```
 
-These bound the size of raw logs and generated summaries so that parsing stays within sensible token budgets.
+- `verify_runs` — number of successive clean runs (no recurrence) required after a fix PR merges before the auto-improve tracker closes an issue as `auto-improve:solved`.
 
 ## Claude settings
 
