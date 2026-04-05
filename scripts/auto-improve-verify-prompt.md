@@ -174,7 +174,46 @@ current body right before editing to avoid stomping a concurrent update.
 
 ---
 
-## Step 6 — Run summary
+## Step 6 — Always post a verify comment
+
+**Every verify invocation must post exactly one comment on the target
+issue**, regardless of verdict. This gives humans a chronological, visible
+trail of each verify run without having to diff the issue body. The
+comment is required even when the lifecycle decision is a no-op (e.g.
+`pending-pr`, `no-runs-in-window`, `verify-error`, `absent-before-fix`,
+`baseline-captured`, `still-present`) — not just on close/regression.
+
+Use `gh issue comment <n> --body-file /tmp/verify-comment.md` with a body
+shaped like:
+
+```markdown
+🔁 **Auto-improve verify run** — <YYYY-MM-DD>
+
+- state: `<entry-state>` → `<new-state>`
+- window: `<WINDOW_START>` … `<WINDOW_END>`
+- before: `<baseline-count>`  after: `<after-count>`
+- workflows parsed: `<N>`  conversations analyzed: `<N>`
+- verdict: **<solved|regression|regression-reopened|still-present|pending-pr|absent-before-fix|baseline-captured|no-runs-in-window|verify-error>`
+
+<one-line rationale, e.g. "0 recurrences since fix PR #NN merged" or
+"extractor returned 3 matches; see evidence below">
+
+<optional: up to 3 short `after_evidence` excerpts as a bulleted list>
+```
+
+Post the comment **in addition to** any decision-specific comment
+required by Step 4 (e.g. the regression comment on `merged → raised`).
+The two serve different purposes: the Step 4 comment is the alert, the
+Step 6 comment is the heartbeat. If both apply to the same run, post
+both.
+
+The only situation in which you may skip the comment is the
+`solved (closed) + no after-signal` no-op row in Step 4 — that row
+explicitly instructs you not to touch a stable closed issue at all.
+
+---
+
+## Step 7 — Run summary
 
 Print a summary to stdout at the end of the run:
 
