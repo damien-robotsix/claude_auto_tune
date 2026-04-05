@@ -35,12 +35,15 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 
 ## CI sandbox — Bash command rules
 
-When running inside `anthropics/claude-code-action@v1` (the claude.yml,
-claude-code-review.yml, and auto-improve.yml workflows), Bash tool calls
-are restricted by an allowlist and a further sandbox. Follow these rules
-on **every** Bash call — they are the largest single source of failed
-tool calls in this workspace. Full details with exact harness error
-strings live in [`docs/ci-sandbox-rules.md`](docs/ci-sandbox-rules.md).
+**Scope:** these rules only apply when running inside
+`anthropics/claude-code-action@v1` (the claude.yml, claude-code-review.yml,
+and auto-improve.yml workflows), where Bash tool calls are restricted by
+an allowlist and a further sandbox. Local runs (Docker or any invocation
+that skips permissions) are unaffected and may ignore this section. In
+CI, follow these rules on **every** Bash call — they are the largest
+single source of failed tool calls in this workspace. Full details with
+exact harness error strings live in
+[`docs/ci-sandbox-rules.md`](docs/ci-sandbox-rules.md).
 
 - **One operation per `Bash` call.** Shell pipes (`|`), command chains
   (`&&`, `;`), command substitution (`$(...)`, backticks), and process
