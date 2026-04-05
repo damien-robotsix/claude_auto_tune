@@ -1,39 +1,34 @@
 # Claude Auto Tune
 
-A self-improving Claude Code workspace. Run Claude locally in Docker for safe autonomous operation, or through CI via the official `anthropics/claude-code-action@v1` GitHub Action.
+A self-improving [Claude Code](https://claude.com/claude-code) workspace. Run Claude locally in Docker for safe autonomous operation, or through CI via the official `anthropics/claude-code-action@v1` GitHub Action.
 
 ## Quick start
 
-### Local (Docker)
+Local (Docker):
 
 ```bash
 ./run.sh
 ```
 
-This builds and runs Claude in a Docker container with `--dangerously-skip-permissions` for autonomous operation. Auth state persists in `.claude-home/`.
-
-### CI (GitHub Actions)
-
-First, authenticate with GitHub (with the required scopes):
+CI (GitHub Actions):
 
 ```bash
 gh auth login -h github.com -s repo,workflow
-```
-
-Then, from inside Claude Code CLI:
-
-```
+# then, inside Claude Code CLI:
 /install-github-app
 ```
 
-This installs the Claude GitHub App and configures the `ANTHROPIC_API_KEY` secret. Then mention `@claude` in any issue or PR comment.
+Then mention `@claude` in any issue or PR comment.
 
-## Structure
+## Documentation
 
-```
-.claude/settings.json   # Shared Claude settings (tracked in git)
-CLAUDE.md               # Agent instructions
-Dockerfile              # Container for local runs
-docker-compose.yml      # Docker orchestration
-run.sh                  # Entry point for local sessions
-```
+Full documentation is published to GitHub Pages:
+
+**https://damien-robotsix.github.io/claude_auto_tune/**
+
+Source lives in [`docs/`](docs/):
+
+- [Quick start](docs/quickstart.md)
+- [Configuration](docs/configuration.md)
+- [Workflows](docs/workflows.md)
+- [Architecture](docs/architecture.md)
