@@ -20,6 +20,7 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 - Flag potential bugs, edge cases, and missing error handling
 - Suggest improvements only when they meaningfully improve the code
 - Be specific — reference exact lines and propose concrete fixes
+- To gather PR context, use `python3 scripts/collect-pr-review-context.py <pr-number>` instead of issuing multiple `gh api` / `gh pr view` Bash calls. It returns PR metadata, diff, linked issues, comments, and check-run status as a single JSON bundle.
 
 ## Safety rules
 
