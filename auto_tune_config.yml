@@ -42,7 +42,7 @@ auto_improve_verify:
 hub:
   # Master switch. When false, the hub-daily-sweep workflow runs but
   # exits immediately without touching the hub repo.
-  enabled: false
+  enabled: true
   # Hub repo slug. All proposals this workspace creates go here.
   repo: "damien-robotsix/claude-auto-tune-hub"
   # Daily sweep cron — scans PRs merged in the last 24h.
