@@ -8,10 +8,14 @@ name: Auto-Improvement Verify
 # to merged / close as solved / reopen regression). It is the ONLY
 # workflow allowed to advance issues past `pr-open` and the ONLY workflow
 # allowed to close an auto-improve issue.
+#
+# Iteration over open issues is deterministic: the `list-issues` job
+# enumerates targets up front and the `verify` job fans out via a matrix
+# so each Claude invocation handles exactly one issue.
 
 on:
   schedule:
-    # Runs daily at 06:00 UTC — iterates every open auto-improve issue.
+    # Runs daily at 06:00 UTC — fans out over every open auto-improve issue.
     - cron: '0 6 * * *'
   workflow_dispatch:
     inputs:
@@ -21,8 +25,47 @@ on:
         default: ''
 
 jobs:
-  auto-improve-verify:
+  list-issues:
     runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    outputs:
+      issues: ${{ steps.collect.outputs.issues }}
+      count: ${{ steps.collect.outputs.count }}
+    steps:
+      - name: Collect target issue numbers
+        id: collect
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_ISSUE: ${{ github.event.inputs.issue_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_ISSUE}" ]; then
+            issues=$(jq -nc --arg n "${INPUT_ISSUE}" '[($n | tonumber)]')
+          else
+            issues=$(gh issue list \
+              --repo "${REPO}" \
+              --label auto-improve \
+              --state open \
+              --limit 200 \
+              --json number \
+              --jq '[.[].number]')
+          fi
+          count=$(echo "${issues}" | jq 'length')
+          echo "issues=${issues}" >> "$GITHUB_OUTPUT"
+          echo "count=${count}" >> "$GITHUB_OUTPUT"
+          echo "Selected ${count} issue(s): ${issues}"
+
+  verify:
+    needs: list-issues
+    if: needs.list-issues.outputs.count != '0'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        issue_number: ${{ fromJSON(needs.list-issues.outputs.issues) }}
     permissions:
       contents: read
       pull-requests: read
@@ -62,8 +105,8 @@ jobs:
           prompt: |
             Read the file `scripts/auto-improve-verify-prompt.md` — it
             contains your full instructions. You are the **verify** half
-            of the split auto-improve tracker. For each target issue, load
-            its `## Baseline (before fix)` section, invoke the
+            of the split auto-improve tracker. Load the target issue's
+            `## Baseline (before fix)` section, invoke the
             `workflow-insights-extractor` subagent scoped to that issue's
             fingerprint key to build an "after" snapshot, append a
             `## Verification history` entry, and make the lifecycle
@@ -71,12 +114,13 @@ jobs:
             as solved, or reopen on regression. You are the only workflow
             allowed to close an auto-improve issue.
 
-            ISSUE_NUMBER=${{ github.event.inputs.issue_number || '' }}
+            ISSUE_NUMBER=${{ matrix.issue_number }}
             Today's date: $(date +%Y-%m-%d)
 
-            If ISSUE_NUMBER is empty, iterate every open issue with label
-            `auto-improve` and run the verify procedure for each. If
-            ISSUE_NUMBER is set, verify only that single issue and exit.
+            Verify only this single issue and exit. The workflow
+            enumerates open issues deterministically up front and fans
+            out one invocation per issue via a matrix, so you must not
+            list or iterate over other issues yourself.
 
           claude_args: >-
             --model ${{ steps.model.outputs.id }}
@@ -109,7 +153,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: claude-transcript
+          name: claude-transcript-issue-${{ matrix.issue_number }}
           path: ~/.claude/projects/**/*.jsonl
           if-no-files-found: ignore
           retention-days: 30
