@@ -23,9 +23,11 @@ Your job, for each target issue:
 4. Append a new `## Verification history` entry to the issue body and
    apply the label + state change.
 
-You touch **one issue at a time**. If the caller passed `ISSUE_NUMBER=<n>`,
-verify only that issue. If `ISSUE_NUMBER` is empty, iterate every open
-issue with label `auto-improve` in order and verify each.
+You touch **exactly one issue per invocation**. The caller always passes
+`ISSUE_NUMBER=<n>`; verify only that issue and exit. Iteration across
+open auto-improve issues is handled deterministically by the workflow
+matrix in `.github/workflows/auto-improve-verify.yml` — do not list or
+loop over other issues yourself.
 
 ---
 
@@ -47,26 +49,13 @@ Label invariants you must preserve on every edit:
 
 ## Step 1 — Resolve the target issue
 
-If `ISSUE_NUMBER` is set:
+`ISSUE_NUMBER` is always provided by the caller. Fetch the issue:
 
 ```bash
 gh issue view "$ISSUE_NUMBER" \
   --json number,title,body,labels,state,closedAt,url,comments \
   > /tmp/issue.json
 ```
-
-If `ISSUE_NUMBER` is empty, list and iterate:
-
-```bash
-gh issue list \
-  --label auto-improve \
-  --state open \
-  --limit 200 \
-  --json number,title,body,labels,state \
-  > /tmp/open-issues.json
-```
-
-For each entry, loop the procedure below.
 
 Parse the fingerprint block out of the body and extract:
 - `key` (stable slug)
