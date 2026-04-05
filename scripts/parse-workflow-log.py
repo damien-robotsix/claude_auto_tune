@@ -66,7 +66,6 @@ def _load_config() -> dict:
 
 
 _CONFIG = _load_config()
-_LOG_PARSER_CFG = _CONFIG.get("log_parser", {})
 
 
 def _resolve_model(name: str) -> str:
@@ -115,27 +114,10 @@ Log:
 {log_content}
 ---"""
 
-# Truncate logs to avoid token limits — Haiku context window is 200k but we
-# keep it lean to stay cheap. Middle sections of logs tend to be noise.
-MAX_LOG_CHARS = int(_LOG_PARSER_CFG.get("max_log_chars", 40_000))
-
-
-def truncate_log(log: str) -> str:
-    if len(log) <= MAX_LOG_CHARS:
-        return log
-    half = MAX_LOG_CHARS // 2
-    return (
-        log[:half]
-        + f"\n\n... [truncated {len(log) - MAX_LOG_CHARS} chars] ...\n\n"
-        + log[-half:]
-    )
-
-
 def parse_log(log_content: str) -> dict:
     client = _build_anthropic_client()
 
-    truncated = truncate_log(log_content)
-    prompt = EXTRACT_PROMPT.format(log_content=truncated)
+    prompt = EXTRACT_PROMPT.format(log_content=log_content)
 
     _alias = _CONFIG.get("models", {}).get("log_parser", "haiku")
     message = client.messages.create(

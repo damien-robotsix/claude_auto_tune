@@ -70,7 +70,6 @@ def _load_config() -> dict:
 
 
 _CONFIG = _load_config()
-_LOG_PARSER_CFG = _CONFIG.get("log_parser", {})
 
 
 def _resolve_model(name: str) -> str:
@@ -121,9 +120,6 @@ Session tool-call summary:
 ---
 {transcript_summary}
 ---"""
-
-MAX_SUMMARY_CHARS = int(_LOG_PARSER_CFG.get("max_summary_chars", 30_000))
-
 
 def extract_tool_calls(lines: list[str]) -> dict:
     """Parse JSONL transcript lines and extract tool call statistics."""
@@ -226,9 +222,6 @@ def extract_tool_calls(lines: list[str]) -> dict:
 
 def parse_transcript(summary_text: str) -> dict:
     client = _build_anthropic_client()
-
-    if len(summary_text) > MAX_SUMMARY_CHARS:
-        summary_text = summary_text[:MAX_SUMMARY_CHARS] + "\n\n... [truncated] ..."
 
     prompt = EXTRACT_PROMPT.format(transcript_summary=summary_text)
 
