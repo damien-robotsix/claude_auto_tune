@@ -8,9 +8,14 @@ name: Config Sanity Check
 # the exact matching rules.
 
 on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
   schedule:
-    # Daily at 06:00 UTC. Cheap enough to run every day and fast
-    # feedback beats letting drift accumulate for a week.
+    # Daily at 06:00 UTC as a belt-and-braces backstop in case a PR
+    # somehow merges without the required check — the deterministic
+    # per-PR run above is the primary defence.
     - cron: '0 6 * * *'
   workflow_dispatch:
 
