@@ -12,8 +12,6 @@ models:
   code_review: "opus"
   # Model used by the auto-improve workflow
   auto_improve: "opus"
-  # Model used by the log/transcript parsing scripts (cheaper, fast)
-  log_parser: "haiku"
 
 # Alias → full model ID mapping. Update here when new versions are released.
 # Scripts fall back to these built-in defaults if this section is absent.

@@ -88,69 +88,54 @@ normalized problem title + category.
 
 ---
 
-## Step 1 — Discover data
+## Step 1 — Discover data (delegated to the extractor subagent)
 
-Fetch runs and parse them exactly as in the previous tracker generation.
+**You do not extract signals yourself.** Raw log and transcript parsing is
+handled by two deterministic scripts (`scripts/parse-workflow-log.py`,
+`scripts/parse-claude-transcript.py`) that are driven by a dedicated
+subagent: `workflow-insights-extractor` (see
+`.claude/agents/workflow-insights-extractor.md`). This separation keeps the
+extraction deterministic and comparable across runs, while the subagent does
+the LLM-side clustering.
 
-```bash
-pip install -q anthropic pyyaml
+Invoke the subagent via the Task tool with a prompt like:
 
-gh api repos/$GITHUB_REPOSITORY/actions/runs \
-  --paginate \
-  --jq '.workflow_runs[] | {id: .id, name: .name, created_at: .created_at, conclusion: .conclusion}' \
-  > /tmp/runs.jsonl
-echo ">>> Total runs discovered: $(wc -l < /tmp/runs.jsonl)"
+> Run the workflow-insights-extractor procedure. CONVERSATION_LIMIT=`$CONVERSATION_LIMIT`.
+> Discover all workflow runs, pipe every run's log through
+> `parse-workflow-log.py`, parse up to CONVERSATION_LIMIT Claude Code
+> session transcripts with `parse-claude-transcript.py`, cluster the
+> signals, and return the problem candidates as a JSON array.
 
-RUN_IDS=$(jq -r '.id' /tmp/runs.jsonl)
+The subagent returns a JSON array of **problem candidates**, each shaped:
 
-WORKFLOWS_PARSED=0
-for RUN_ID in $RUN_IDS; do
-  gh run view "$RUN_ID" --log 2>/dev/null \
-    | python3 scripts/parse-workflow-log.py \
-    >> /tmp/all-insights.jsonl \
-    || echo '{"summary":"fetch failed","insights":[]}' >> /tmp/all-insights.jsonl
-  WORKFLOWS_PARSED=$((WORKFLOWS_PARSED + 1))
-done
-echo ">>> Workflows parsed: $WORKFLOWS_PARSED"
-
-CONVERSATIONS_ANALYZED=0
-for RUN_ID in $RUN_IDS; do
-  if [ "$CONVERSATIONS_ANALYZED" -ge "$CONVERSATION_LIMIT" ]; then break; fi
-  ARTIFACT_ID=$(gh api repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts \
-    --jq '.artifacts[] | select(.name == "claude-transcript") | .id' 2>/dev/null | head -1)
-  if [ -z "$ARTIFACT_ID" ]; then continue; fi
-  mkdir -p /tmp/transcripts/$RUN_ID
-  gh api repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip \
-    > /tmp/transcripts/$RUN_ID/transcript.zip 2>/dev/null
-  unzip -q /tmp/transcripts/$RUN_ID/transcript.zip -d /tmp/transcripts/$RUN_ID/ 2>/dev/null || true
-  python3 scripts/parse-claude-transcript.py /tmp/transcripts/$RUN_ID/ \
-    >> /tmp/all-transcript-insights.jsonl \
-    || echo '{"summary":"parse failed","tool_call_count":0,"top_tools":[],"insights":[]}' \
-       >> /tmp/all-transcript-insights.jsonl
-  CONVERSATIONS_ANALYZED=$((CONVERSATIONS_ANALYZED + 1))
-done
-echo ">>> Conversations analyzed: $CONVERSATIONS_ANALYZED (cap: $CONVERSATION_LIMIT)"
+```json
+{
+  "title": "<short imperative>",
+  "category": "reliability|cost_reduction|new_workflow|deterministic_script|subagent_skill|capability_gap|docs_convention",
+  "key": "<stable slug>",
+  "confidence": "low|medium|high",
+  "evidence": [
+    { "run_id": "<id>", "source": "workflow_log|transcript", "excerpt": "<≤160 chars>" }
+  ]
+}
 ```
 
-If both counts are 0, skip to Step 7 and exit without touching issues.
+The subagent is already responsible for filtering low-signal candidates
+(`≥ 2 observations` OR `1 high-confidence observation with strong evidence`),
+so every item it returns is a real candidate you should reconcile.
+
+If the subagent returns an empty array `[]`, skip to Step 7 and exit without
+touching issues. Parse its other stdout (`>>> Total runs discovered`,
+`>>> Workflows parsed`, `>>> Conversations analyzed`) to populate the run
+summary counters in Step 7.
 
 ---
 
-## Step 2 — Cluster raw insights into problem candidates
+## Step 2 — (intentionally absorbed into Step 1)
 
-Read `/tmp/all-insights.jsonl` and `/tmp/all-transcript-insights.jsonl`, group
-related entries, and produce a list of **problem candidates** in memory. Each
-candidate has:
-
-- `title` — short imperative description
-- `category` — one of the categories from the fingerprint table
-- `key` — stable slug you generate from the title + category
-- `evidence` — list of `{run_id, excerpt}` tuples (at least 1)
-- `confidence` — low / medium / high
-
-Require **≥ 2 observations** OR **1 high-confidence observation with strong
-evidence** before a candidate can become an issue. Lower-signal candidates are
-discarded this run (they'll surface again next week if the problem is real).
+Clustering into candidates is performed by the
+`workflow-insights-extractor` subagent in Step 1. You start Step 3 directly
+from its returned candidate list.
 
 ---
 

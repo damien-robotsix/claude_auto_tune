@@ -66,6 +66,7 @@ jobs:
           claude_args: >-
             --model ${{ steps.model.outputs.id }}
             --allowed-tools
+            Task,
             Bash(gh api:*),
             Bash(gh run:*),
             Bash(gh pr:*),
@@ -73,7 +74,6 @@ jobs:
             Bash(gh label:*),
             Bash(jq:*),
             Bash(git *),
-            Bash(pip install*),
             Bash(python3 *),
             Bash(mkdir *),
             Bash(cat *),

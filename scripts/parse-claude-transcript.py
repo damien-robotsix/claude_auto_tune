@@ -1,136 +1,47 @@
 #!/usr/bin/env python3
 """
-Parse a Claude Code session transcript (JSONL) using Claude Haiku.
+Deterministic Claude Code session-transcript signal extractor.
 
-Claude Code saves session transcripts as JSONL files under:
-  ~/.claude/projects/<encoded-path>/<session-id>.jsonl
+Claude Code saves session transcripts as JSONL files under::
 
-Each line is a JSON object representing one turn (user, assistant, or tool result).
-This script reads that JSONL, extracts a tool-call summary, then sends it to
-Haiku for structured insight extraction.
+    ~/.claude/projects/<encoded-path>/<session-id>.jsonl
 
-Usage:
+Each line is a JSON object representing one turn (user, assistant, or tool
+result). This script walks one or more such files and emits a structured
+JSON summary of tool-call activity: total counts, top tools, failed tools,
+repeated consecutive runs, token usage, and a short sequence preview.
+
+It is **pure aggregation** — no LLM calls, no credentials, no network. All
+reasoning over this summary is the job of the ``workflow-insights-extractor``
+subagent that calls this script.
+
+Usage::
+
     cat ~/.claude/projects/**/*.jsonl | python3 scripts/parse-claude-transcript.py
     python3 scripts/parse-claude-transcript.py <transcript-file.jsonl>
     python3 scripts/parse-claude-transcript.py <dir-of-jsonl-files/>
 """
 
 import json
-import sys
-import os
 import pathlib
+import sys
 from collections import Counter
 
-try:
-    import anthropic
-except ImportError:
-    sys.exit("anthropic package not found. Run: pip install anthropic")
 
+# Cap on how many items of each list we include in the output. Counts are
+# always exact; samples are truncated so the downstream subagent prompt
+# stays small.
+TOP_N = 20
+SEQUENCE_PREVIEW_LEN = 100
 
-def _have_real_api_key() -> bool:
-    """Return True when a usable ANTHROPIC_API_KEY is set in the environment.
-
-    Inside ``anthropics/claude-code-action@v1`` the Action exports
-    ``ANTHROPIC_API_KEY=""`` (empty string) and expects the harness to use
-    OAuth via ``CLAUDE_CODE_OAUTH_TOKEN``. That OAuth token is **not** accepted
-    by the public ``api.anthropic.com`` endpoint — direct SDK calls with it
-    return ``401 OAuth authentication is currently not supported``. So the
-    only credential that actually lets this script call Haiku is a real API
-    key set via the ``ANTHROPIC_API_KEY`` secret in the workflow env.
-    """
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
-
-
-def _build_anthropic_client() -> "anthropic.Anthropic":
-    """Construct an Anthropic client backed by a real API key.
-
-    Callers must gate this behind :func:`_have_real_api_key` — we no longer
-    fall back to ``CLAUDE_CODE_OAUTH_TOKEN`` because the public Anthropic API
-    rejects OAuth tokens with 401.
-    """
-    if os.environ.get("ANTHROPIC_BASE_URL", None) == "":
-        os.environ.pop("ANTHROPIC_BASE_URL", None)
-    return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-
-_DEFAULT_MODEL_ALIASES = {
-    "haiku": "claude-haiku-4-5-20251001",
-    "sonnet": "claude-sonnet-4-6",
-    "opus": "claude-opus-4-6",
-}
-
-
-def _load_config() -> dict:
-    """Load auto_tune_config.yml from the repo root (two levels up from scripts/)."""
-    config_path = pathlib.Path(__file__).parent.parent / "auto_tune_config.yml"
-    if not config_path.exists():
-        return {}
-    try:
-        import yaml
-        return yaml.safe_load(config_path.read_text()) or {}
-    except Exception:
-        return {}
-
-
-_CONFIG = _load_config()
-
-
-def _resolve_model(name: str) -> str:
-    """Return the full model ID for a short alias, or the name as-is.
-
-    Aliases are read from ``model_aliases`` in auto_tune_config.yml; the
-    built-in defaults are used when that section is absent.
-    """
-    aliases = _CONFIG.get("model_aliases", _DEFAULT_MODEL_ALIASES)
-    return aliases.get(name.lower(), name)
-
-
-SYSTEM_PROMPT = """You are an expert at analyzing Claude Code AI agent session transcripts.
-Your job is to identify patterns, inefficiencies, and improvement opportunities from
-sequences of tool calls made by Claude Code during a task.
-
-Focus on:
-1. Repeated or redundant tool calls — could be cached or avoided
-2. Long tool call chains to accomplish simple tasks — candidates for helper scripts
-3. Failed tool calls or error-recovery loops — reliability improvements
-4. Missing tools that Claude worked around — capability gaps
-5. Expensive multi-step patterns that a single deterministic script could replace
-"""
-
-EXTRACT_PROMPT = """Analyze this Claude Code session tool-call summary.
-
-The summary shows which tools were called, how many times, and any notable patterns
-extracted from the JSONL transcript.
-
-Extract improvement opportunities as JSON with this exact structure:
-{{
-  "summary": "<one sentence: what task this session accomplished>",
-  "tool_call_count": <total number of tool calls>,
-  "top_tools": [<list of top 5 tool names by call count>],
-  "insights": [
-    {{
-      "category": "<one of: new_workflow | deterministic_script | subagent_skill | cost_reduction | reliability | capability_gap>",
-      "title": "<short title>",
-      "description": "<specific actionable description referencing the tool call patterns>",
-      "priority": "<high | medium | low>"
-    }}
-  ]
-}}
-
-Only include insights with clear evidence from the transcript. Return valid JSON only.
-
-Session tool-call summary:
----
-{transcript_summary}
----"""
 
 def extract_tool_calls(lines: list[str]) -> dict:
-    """Parse JSONL transcript lines and extract tool call statistics."""
+    """Walk JSONL lines and return a structured activity summary."""
     tool_counter: Counter = Counter()
     error_tools: list[str] = []
     tool_sequences: list[str] = []
     total_input_tokens = 0
     total_output_tokens = 0
-    session_summary = ""
 
     for raw in lines:
         raw = raw.strip()
@@ -141,7 +52,8 @@ def extract_tool_calls(lines: list[str]) -> dict:
         except json.JSONDecodeError:
             continue
 
-        # Claude Code JSONL wraps messages: {"type": "assistant", "message": {...}}
+        # Claude Code JSONL wraps messages:
+        #   {"type": "assistant", "message": {...}}
         # Fall back to top-level role/content for older formats.
         msg = entry.get("message", entry)
         role = msg.get("role", entry.get("type", ""))
@@ -150,7 +62,6 @@ def extract_tool_calls(lines: list[str]) -> dict:
         if isinstance(content, str):
             content = [{"type": "text", "text": content}]
 
-        # Extract usage from assistant messages
         usage = msg.get("usage") or entry.get("usage", {})
         if usage:
             total_input_tokens += usage.get("input_tokens", 0)
@@ -163,38 +74,19 @@ def extract_tool_calls(lines: list[str]) -> dict:
                     tool_counter[name] += 1
                     tool_sequences.append(name)
 
-        elif role == "tool":
-            # Detect tool errors
+        elif role in ("tool", "user"):
+            # Tool results are delivered as either role="tool" (older) or
+            # role="user" with tool_result blocks (current). Detect errors
+            # either way.
             for block in content if isinstance(content, list) else []:
                 if isinstance(block, dict) and block.get("type") == "tool_result":
-                    if block.get("is_error"):
-                        # Map back to the tool name via the preceding sequence entry
-                        if tool_sequences:
-                            error_tools.append(tool_sequences[-1])
+                    if block.get("is_error") and tool_sequences:
+                        error_tools.append(tool_sequences[-1])
 
-    # Build a readable summary for Haiku
-    lines_out: list[str] = []
-
-    if total_input_tokens or total_output_tokens:
-        lines_out.append(
-            f"Token usage: {total_input_tokens} input, {total_output_tokens} output"
-        )
-
-    lines_out.append(f"Total tool calls: {sum(tool_counter.values())}")
-
-    if tool_counter:
-        lines_out.append("\nTool call counts (descending):")
-        for tool, count in tool_counter.most_common(20):
-            lines_out.append(f"  {tool}: {count}")
-
-    if error_tools:
-        error_counts = Counter(error_tools)
-        lines_out.append("\nFailed tool calls:")
-        for tool, count in error_counts.most_common():
-            lines_out.append(f"  {tool}: {count} error(s)")
-
-    # Detect repeated sequences (runs of 3+ identical consecutive calls)
-    repeated: list[str] = []
+    # Repeated consecutive-run detection: runs of 3+ identical calls in a
+    # row are a strong signal that a loop could be replaced by a single
+    # deterministic script.
+    repeated: list[dict] = []
     i = 0
     while i < len(tool_sequences):
         j = i
@@ -202,79 +94,44 @@ def extract_tool_calls(lines: list[str]) -> dict:
             j += 1
         run_len = j - i
         if run_len >= 3:
-            repeated.append(f"  {tool_sequences[i]} called {run_len}x in a row")
+            repeated.append({"tool": tool_sequences[i], "run_length": run_len, "start_index": i})
         i = j
-    if repeated:
-        lines_out.append("\nRepeated consecutive calls:")
-        lines_out.extend(repeated)
 
-    # Truncate sequence to show first 100 tool calls
-    if tool_sequences:
-        seq_preview = " → ".join(tool_sequences[:100])
-        if len(tool_sequences) > 100:
-            seq_preview += f" ... (+{len(tool_sequences) - 100} more)"
-        lines_out.append(f"\nTool call sequence (first 100):\n  {seq_preview}")
+    error_counter = Counter(error_tools)
+
+    preview = tool_sequences[:SEQUENCE_PREVIEW_LEN]
+    sequence_preview = " → ".join(preview)
+    if len(tool_sequences) > SEQUENCE_PREVIEW_LEN:
+        sequence_preview += f" … (+{len(tool_sequences) - SEQUENCE_PREVIEW_LEN} more)"
 
     return {
-        "text": "\n".join(lines_out),
-        "total_calls": sum(tool_counter.values()),
+        "tool_call_count": sum(tool_counter.values()),
         "top_tools": [t for t, _ in tool_counter.most_common(5)],
-    }
-
-
-def parse_transcript(summary_text: str) -> dict:
-    client = _build_anthropic_client()
-
-    prompt = EXTRACT_PROMPT.format(transcript_summary=summary_text)
-
-    _alias = _CONFIG.get("models", {}).get("log_parser", "haiku")
-    message = client.messages.create(
-        model=_resolve_model(_alias),
-        max_tokens=1024,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    raw = message.content[0].text.strip()
-
-    # Strip markdown code fences if present
-    if raw.startswith("```"):
-        raw_lines = raw.split("\n")
-        raw = "\n".join(raw_lines[1:-1] if raw_lines[-1] == "```" else raw_lines[1:])
-
-    return json.loads(raw)
-
-
-def _deterministic_result(extracted: dict) -> dict:
-    """Build a no-LLM fallback result from the deterministic tool-call summary.
-
-    Used when ``ANTHROPIC_API_KEY`` is not set or when the Haiku call fails.
-    The downstream tracker can still cluster on tool-call counts and top
-    tools; it just won't get LLM-authored insights for this session.
-    """
-    return {
-        "summary": "deterministic fallback — LLM parser unavailable",
-        "tool_call_count": extracted["total_calls"],
-        "top_tools": extracted["top_tools"],
-        "insights": [],
+        "tool_counts": dict(tool_counter.most_common(TOP_N)),
+        "error_tools": dict(error_counter.most_common(TOP_N)),
+        "repeated_sequences": repeated[:TOP_N],
+        "token_usage": {
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+        },
+        "tool_sequence_preview": sequence_preview,
     }
 
 
 def collect_jsonl_lines(source: str) -> list[str]:
-    """Collect all JSONL lines from a file, directory, or stdin."""
+    """Collect all JSONL lines from a file, directory, or stdin sentinel."""
     p = pathlib.Path(source)
     if p.is_dir():
         lines: list[str] = []
         for jf in sorted(p.rglob("*.jsonl")):
             lines.extend(jf.read_text(errors="replace").splitlines())
         return lines
-    elif p.is_file():
+    if p.is_file():
         return p.read_text(errors="replace").splitlines()
-    else:
-        return []
+    return []
 
 
-def main():
+def main() -> None:
     if len(sys.argv) > 1:
         all_lines: list[str] = []
         for arg in sys.argv[1:]:
@@ -283,29 +140,19 @@ def main():
         all_lines = sys.stdin.read().splitlines()
 
     if not any(line.strip() for line in all_lines):
-        print(json.dumps({"summary": "empty transcript", "tool_call_count": 0, "top_tools": [], "insights": []}))
+        print(json.dumps({
+            "tool_call_count": 0,
+            "top_tools": [],
+            "tool_counts": {},
+            "error_tools": {},
+            "repeated_sequences": [],
+            "token_usage": {"input_tokens": 0, "output_tokens": 0},
+            "tool_sequence_preview": "",
+            "note": "empty transcript",
+        }))
         return
 
-    extracted = extract_tool_calls(all_lines)
-
-    if extracted["total_calls"] == 0:
-        print(json.dumps({"summary": "no tool calls found", "tool_call_count": 0, "top_tools": [], "insights": []}))
-        return
-
-    if not _have_real_api_key():
-        # Running inside claude-code-action (OAuth-only) or with no creds at
-        # all. Degrade gracefully: emit the deterministic tool-call summary so
-        # the tracker pipeline still gets signal.
-        print(json.dumps(_deterministic_result(extracted), indent=2))
-        return
-
-    try:
-        result = parse_transcript(extracted["text"])
-    except anthropic.AuthenticationError:
-        # Safety net: even with ANTHROPIC_API_KEY set, the key may be revoked
-        # or wrong. Don't crash the whole tracker over one bad session.
-        print(json.dumps(_deterministic_result(extracted), indent=2))
-        return
+    result = extract_tool_calls(all_lines)
     print(json.dumps(result, indent=2))
 
 

@@ -16,7 +16,6 @@ models:
   claude_code: "opus"   # main claude.yml workflow
   code_review: "opus"   # code-review workflow
   auto_improve: "opus"  # auto-improve workflow
-  log_parser: "haiku"   # log/transcript parsing scripts (cheaper, fast)
 ```
 
 You can use a short alias (`haiku`, `sonnet`, `opus`) or pin a full model ID (for example `claude-sonnet-4-6`).
