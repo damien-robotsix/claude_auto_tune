@@ -50,6 +50,17 @@ jobs:
           id=$(yq ".model_aliases.\"$alias\" // \"$alias\"" auto_tune_config.yml)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve conversation limit
+        id: limit
+        run: |
+          override='${{ github.event.inputs.conversation_limit }}'
+          if [ -n "$override" ]; then
+            value="$override"
+          else
+            value=$(yq '.auto_improve.default_conversation_limit // 20' auto_tune_config.yml)
+          fi
+          echo "value=$value" >> "$GITHUB_OUTPUT"
+
       - name: Run Auto-Improvement Discover
         uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
         with:
@@ -71,7 +82,7 @@ jobs:
             issue, dispatch the verify workflow with that issue number so
             its baseline is confirmed immediately.
 
-            CONVERSATION_LIMIT=${{ github.event.inputs.conversation_limit || '20' }}
+            CONVERSATION_LIMIT=${{ steps.limit.outputs.value }}
             Workflow logs to parse: all discoverable runs (no cap)
             Today's date: $(date +%Y-%m-%d)
 

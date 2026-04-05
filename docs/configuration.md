@@ -63,17 +63,15 @@ The `hub:` section configures the shared [`claude-auto-tune-hub`](https://github
 hub:
   enabled: true
   repo: "damien-robotsix/claude-auto-tune-hub"
-  sweep_schedule: "0 3 * * *"
-  proposal_lifetime_days: 7
-  auto_adopt_from: []
   local_transcripts:
     enabled: false
 ```
 
 - `hub.enabled` — master switch for every lane. When false, all hub scripts and workflows exit without touching anything.
 - `hub.repo` — slug of the shared hub repo. One repo hosts multiple disjoint data lanes (each lane owns its own directory tree or label set inside the hub).
-- `hub.sweep_schedule` / `hub.proposal_lifetime_days` / `hub.auto_adopt_from` — parameters for the improvement-proposal lane (issues in the hub, see `scripts/hub/hub-open-proposal.py` and the `hub-daily-sweep` workflow).
 - `hub.local_transcripts.enabled` — independent switch for the local-transcript publishing lane. When true, [`scripts/hub/push-local-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/push-local-transcripts.py) copies new Claude Code session transcripts from `.claude-home/.claude/projects/` into `transcripts/<workspace-slug>/<YYYY-MM-DD>/` in the hub. Defaults to `false` so the script is a no-op until you opt in.
+
+The hub-daily-sweep cron is hardcoded in `.github/workflows/hub-daily-sweep.yml` (same reason as the auto-improve crons — `on.schedule` cannot be templated from config). Proposal lifetime enforcement lives in the hub repo itself.
 
 The two lanes share only the hub repo and the `hub.enabled` master switch. They have disjoint directory trees, disjoint scripts, and independent opt-in flags — adopting one does not commit you to the other.
 
