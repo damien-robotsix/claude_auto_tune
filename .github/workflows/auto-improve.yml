@@ -65,8 +65,15 @@ jobs:
             Bash(mkdir *),
             Bash(cat *),
             Bash(echo *),
+            Bash(unzip *),
+            Bash(wc *),
+            Bash(ls *),
+            Bash(head *),
+            Bash(find *),
+            Bash(rm *),
             Read,
             Write,
+            Edit,
             Glob
 
       - name: Upload Claude session transcript
