@@ -39,15 +39,11 @@ Scripts fall back to built-in defaults if this section is missing.
 ```yaml
 auto_improve:
   default_conversation_limit: 20
-  schedule: "0 3 * * 0"
-
-auto_improve_verify:
-  schedule: "0 6 * * *"
 ```
 
 - `auto_improve.default_conversation_limit` — maximum number of Claude Code session transcripts the discover workflow analyzes in a single pass. Workflow logs are always parsed in full (no cap).
-- `auto_improve.schedule` — cron expression (UTC) used by the discover workflow trigger.
-- `auto_improve_verify.schedule` — cron expression (UTC) used by the per-issue verify workflow trigger. The verify workflow can also be dispatched manually with an `issue_number` input.
+
+The discover and verify workflow crons are hardcoded in their respective workflow files (`.github/workflows/auto-improve-discover.yml` and `.github/workflows/auto-improve-verify.yml`) because GitHub Actions' `on.schedule` only accepts literal values and cannot be templated from config.
 
 ## Issue tracking
 

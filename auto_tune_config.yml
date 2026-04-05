@@ -26,13 +26,6 @@ auto_improve:
   # Max Claude Code session transcripts to analyze per run. Workflow logs
   # are always analyzed in full (no cap).
   default_conversation_limit: 20
-  # Discover workflow cron (weekly): parses recent runs, raises/updates issues.
-  schedule: "0 3 * * 0"
-
-auto_improve_verify:
-  # Per-issue verify workflow cron (daily): iterates every open auto-improve
-  # issue and runs a targeted before/after comparison to decide closure.
-  schedule: "0 6 * * *"
 
 # Cross-workspace improvement sharing protocol (issue #32). Phase 1 is
 # publish-only: the hub-daily-sweep workflow scans PRs merged into this
