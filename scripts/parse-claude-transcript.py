@@ -27,28 +27,30 @@ except ImportError:
     sys.exit("anthropic package not found. Run: pip install anthropic")
 
 
-def _build_anthropic_client() -> "anthropic.Anthropic":
-    """Construct an Anthropic client that works inside claude-code-action.
+def _have_real_api_key() -> bool:
+    """Return True when a usable ANTHROPIC_API_KEY is set in the environment.
 
-    The claude-code-action GitHub Action exports ``ANTHROPIC_API_KEY=""`` and
-    ``ANTHROPIC_BASE_URL=""`` (empty strings) so that the action's own harness
-    uses OAuth via ``CLAUDE_CODE_OAUTH_TOKEN``. Those empty values break the
-    Anthropic SDK, which treats an empty string as "no credentials" and an
-    empty base URL as a malformed target. Fall back to the OAuth token when
-    the API key is missing, and strip empty URL overrides so the SDK uses its
-    default endpoint.
+    Inside ``anthropics/claude-code-action@v1`` the Action exports
+    ``ANTHROPIC_API_KEY=""`` (empty string) and expects the harness to use
+    OAuth via ``CLAUDE_CODE_OAUTH_TOKEN``. That OAuth token is **not** accepted
+    by the public ``api.anthropic.com`` endpoint — direct SDK calls with it
+    return ``401 OAuth authentication is currently not supported``. So the
+    only credential that actually lets this script call Haiku is a real API
+    key set via the ``ANTHROPIC_API_KEY`` secret in the workflow env.
+    """
+    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+
+
+def _build_anthropic_client() -> "anthropic.Anthropic":
+    """Construct an Anthropic client backed by a real API key.
+
+    Callers must gate this behind :func:`_have_real_api_key` — we no longer
+    fall back to ``CLAUDE_CODE_OAUTH_TOKEN`` because the public Anthropic API
+    rejects OAuth tokens with 401.
     """
     if os.environ.get("ANTHROPIC_BASE_URL", None) == "":
         os.environ.pop("ANTHROPIC_BASE_URL", None)
-
-    api_key = os.environ.get("ANTHROPIC_API_KEY") or None
-    oauth_token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or None
-
-    if api_key:
-        return anthropic.Anthropic(api_key=api_key)
-    if oauth_token:
-        return anthropic.Anthropic(auth_token=oauth_token)
-    return anthropic.Anthropic()
+    return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 _DEFAULT_MODEL_ALIASES = {
     "haiku": "claude-haiku-4-5-20251001",
@@ -243,6 +245,21 @@ def parse_transcript(summary_text: str) -> dict:
     return json.loads(raw)
 
 
+def _deterministic_result(extracted: dict) -> dict:
+    """Build a no-LLM fallback result from the deterministic tool-call summary.
+
+    Used when ``ANTHROPIC_API_KEY`` is not set or when the Haiku call fails.
+    The downstream tracker can still cluster on tool-call counts and top
+    tools; it just won't get LLM-authored insights for this session.
+    """
+    return {
+        "summary": "deterministic fallback — LLM parser unavailable",
+        "tool_call_count": extracted["total_calls"],
+        "top_tools": extracted["top_tools"],
+        "insights": [],
+    }
+
+
 def collect_jsonl_lines(source: str) -> list[str]:
     """Collect all JSONL lines from a file, directory, or stdin."""
     p = pathlib.Path(source)
@@ -275,7 +292,20 @@ def main():
         print(json.dumps({"summary": "no tool calls found", "tool_call_count": 0, "top_tools": [], "insights": []}))
         return
 
-    result = parse_transcript(extracted["text"])
+    if not _have_real_api_key():
+        # Running inside claude-code-action (OAuth-only) or with no creds at
+        # all. Degrade gracefully: emit the deterministic tool-call summary so
+        # the tracker pipeline still gets signal.
+        print(json.dumps(_deterministic_result(extracted), indent=2))
+        return
+
+    try:
+        result = parse_transcript(extracted["text"])
+    except anthropic.AuthenticationError:
+        # Safety net: even with ANTHROPIC_API_KEY set, the key may be revoked
+        # or wrong. Don't crash the whole tracker over one bad session.
+        print(json.dumps(_deterministic_result(extracted), indent=2))
+        return
     print(json.dumps(result, indent=2))
 
 
