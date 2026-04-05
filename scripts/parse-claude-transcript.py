@@ -26,6 +26,38 @@ try:
 except ImportError:
     sys.exit("anthropic package not found. Run: pip install anthropic")
 
+_DEFAULT_MODEL_ALIASES = {
+    "haiku": "claude-haiku-4-5-20251001",
+    "sonnet": "claude-sonnet-4-6",
+    "opus": "claude-opus-4-6",
+}
+
+
+def _load_config() -> dict:
+    """Load auto_tune_config.yml from the repo root (two levels up from scripts/)."""
+    config_path = pathlib.Path(__file__).parent.parent / "auto_tune_config.yml"
+    if not config_path.exists():
+        return {}
+    try:
+        import yaml
+        return yaml.safe_load(config_path.read_text()) or {}
+    except Exception:
+        return {}
+
+
+_CONFIG = _load_config()
+_LOG_PARSER_CFG = _CONFIG.get("log_parser", {})
+
+
+def _resolve_model(name: str) -> str:
+    """Return the full model ID for a short alias, or the name as-is.
+
+    Aliases are read from ``model_aliases`` in auto_tune_config.yml; the
+    built-in defaults are used when that section is absent.
+    """
+    aliases = _CONFIG.get("model_aliases", _DEFAULT_MODEL_ALIASES)
+    return aliases.get(name.lower(), name)
+
 
 SYSTEM_PROMPT = """You are an expert at analyzing Claude Code AI agent session transcripts.
 Your job is to identify patterns, inefficiencies, and improvement opportunities from
@@ -66,7 +98,7 @@ Session tool-call summary:
 {transcript_summary}
 ---"""
 
-MAX_SUMMARY_CHARS = 30_000
+MAX_SUMMARY_CHARS = int(_LOG_PARSER_CFG.get("max_summary_chars", 30_000))
 
 
 def extract_tool_calls(lines: list[str]) -> dict:
@@ -173,8 +205,9 @@ def parse_transcript(summary_text: str) -> dict:
 
     prompt = EXTRACT_PROMPT.format(transcript_summary=summary_text)
 
+    _alias = _CONFIG.get("models", {}).get("log_parser", "haiku")
     message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
+        model=_resolve_model(_alias),
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": prompt}],
