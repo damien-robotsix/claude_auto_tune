@@ -20,6 +20,32 @@ try:
 except ImportError:
     sys.exit("anthropic package not found. Run: pip install anthropic")
 
+
+def _build_anthropic_client() -> "anthropic.Anthropic":
+    """Construct an Anthropic client that works inside claude-code-action.
+
+    The claude-code-action GitHub Action exports ``ANTHROPIC_API_KEY=""`` and
+    ``ANTHROPIC_BASE_URL=""`` (empty strings) so that the action's own harness
+    uses OAuth via ``CLAUDE_CODE_OAUTH_TOKEN``. Those empty values break the
+    Anthropic SDK, which treats an empty string as "no credentials" and an
+    empty base URL as a malformed target. Fall back to the OAuth token when
+    the API key is missing, and strip empty URL overrides so the SDK uses its
+    default endpoint.
+    """
+    # Drop empty ANTHROPIC_BASE_URL to avoid httpx URL parse errors.
+    if os.environ.get("ANTHROPIC_BASE_URL", None) == "":
+        os.environ.pop("ANTHROPIC_BASE_URL", None)
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY") or None
+    oauth_token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or None
+
+    if api_key:
+        return anthropic.Anthropic(api_key=api_key)
+    if oauth_token:
+        return anthropic.Anthropic(auth_token=oauth_token)
+    # Let the SDK raise its own clear error if nothing is set.
+    return anthropic.Anthropic()
+
 _DEFAULT_MODEL_ALIASES = {
     "haiku": "claude-haiku-4-5-20251001",
     "sonnet": "claude-sonnet-4-6",
@@ -106,7 +132,7 @@ def truncate_log(log: str) -> str:
 
 
 def parse_log(log_content: str) -> dict:
-    client = anthropic.Anthropic()
+    client = _build_anthropic_client()
 
     truncated = truncate_log(log_content)
     prompt = EXTRACT_PROMPT.format(log_content=truncated)
