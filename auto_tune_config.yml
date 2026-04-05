@@ -55,3 +55,14 @@ hub:
   # proposals this workspace will auto-adopt via hub-sync. Unknown
   # origins will produce draft PRs for manual review.
   auto_adopt_from: []
+  # Local transcript publishing lane. Reuses the same hub repo as the
+  # proposal lane but writes to a disjoint subtree
+  # (transcripts/<workspace-slug>/<YYYY-MM-DD>/<session-id>.jsonl) and
+  # uses its own scripts (scripts/hub/push-local-transcripts.py). Off
+  # by default: when disabled, the push script is a no-op so it is
+  # safe to wire unconditionally into run.sh.
+  local_transcripts:
+    # Master switch for the local-transcript push lane. The script
+    # (scripts/hub/push-local-transcripts.py) exits 0 without touching
+    # anything when this is false.
+    enabled: false

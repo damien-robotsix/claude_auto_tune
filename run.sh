@@ -11,7 +11,9 @@ docker compose build
 mkdir -p "$SCRIPT_DIR/.claude-home/.claude" "$SCRIPT_DIR/.claude-home/.config/gh"
 [ -f "$SCRIPT_DIR/.claude-home/.claude.json" ] || touch "$SCRIPT_DIR/.claude-home/.claude.json"
 
-# Run with explicit interactive TTY allocation
+# Run with explicit interactive TTY allocation. `|| true` so a
+# non-zero exit from the container (Ctrl-C, Claude Code error) still
+# falls through to the post-run transcript sync below.
 docker run -it --rm \
     -v "$SCRIPT_DIR:/workspace" \
     -v "$SCRIPT_DIR/.claude-home/.claude:/home/claude/.claude" \
@@ -19,4 +21,17 @@ docker run -it --rm \
     -v "$SCRIPT_DIR/.claude-home/.config/gh:/home/claude/.config/gh" \
     -w /workspace \
     claude_auto_tune-claude \
-    --dangerously-skip-permissions "$@"
+    --dangerously-skip-permissions "$@" || true
+
+# Post-run: publish local Claude Code session transcripts to the hub
+# if the local-transcripts lane is enabled in auto_tune_config.yml.
+# The script is a hard no-op when the flag is off, so this runs
+# unconditionally — the config file is the single source of truth.
+# Failures here (no network, missing git credentials, hub
+# unreachable) are logged but never fail the shell, because a failed
+# transcript sync must not mask the exit status of the actual Claude
+# Code session.
+if command -v python3 >/dev/null 2>&1; then
+    python3 "$SCRIPT_DIR/scripts/hub/push-local-transcripts.py" \
+        || echo "run.sh: hub transcript sync skipped or failed (non-fatal)" >&2
+fi
