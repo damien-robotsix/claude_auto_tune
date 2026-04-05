@@ -37,8 +37,32 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 
 When running inside `anthropics/claude-code-action@v1` (the claude.yml,
 claude-code-review.yml, and auto-improve.yml workflows), Bash tool calls
-are restricted by an allowlist and a sandbox. Before issuing non-trivial
-Bash commands in CI, read [`docs/ci-sandbox-rules.md`](docs/ci-sandbox-rules.md)
-— it documents the exact harness error strings and the concrete
-workarounds for each failure mode (multi-operation pipelines, output
-redirection, `2>&1`, `gh` URL-style arguments, and workflow-file pushes).
+are restricted by an allowlist and a further sandbox. Follow these rules
+on **every** Bash call — they are the largest single source of failed
+tool calls in this workspace. Full details with exact harness error
+strings live in [`docs/ci-sandbox-rules.md`](docs/ci-sandbox-rules.md).
+
+- **One operation per `Bash` call.** Shell pipes (`|`), command chains
+  (`&&`, `;`), command substitution (`$(...)`, backticks), and process
+  substitution each count as separate operations and each sub-command
+  must individually match the allowlist. Rejected with
+  `This Bash command contains multiple operations. The following part
+  requires approval: ...`. Split into sequential calls, or pipe through
+  a single `python3 -c '...'` post-processor.
+- **Do not redirect output outside the working directory.** Writing to
+  `/tmp/*` or any absolute path outside `/home/runner/work/<repo>/<repo>`
+  is blocked with `Output redirection to '...' was blocked`. For scratch
+  data, write under `./.scratch/` inside the repo and clean up afterward;
+  for real files use the `Write` tool.
+- **`2>&1` counts as redirection.** Omit it; tool results already include
+  stderr.
+- **`gh` arguments must be literal values, not URL paths.**
+  `gh pr view owner/repo/pull/7` is parsed as a branch name and fails
+  with `no pull requests found for branch "owner/repo/pull/7"`. Use the
+  numeric PR id alone: `gh pr view 7` (add `--repo owner/repo` only when
+  the target is not the current repository).
+- **`.github/workflows/**` is effectively read-only.** The GitHub App
+  token this agent runs under does not carry the `workflows` permission,
+  so pushes that touch workflow files are rejected at the remote. If a
+  fix needs a workflow change, raise/update the tracked issue with a
+  diff for the human maintainer instead of editing the file.
