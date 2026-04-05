@@ -26,13 +26,6 @@ auto_improve:
   # Max Claude Code session transcripts to analyze per run. Workflow logs
   # are always analyzed in full (no cap).
   default_conversation_limit: 20
-  # Discover workflow cron (weekly): parses recent runs, raises/updates issues.
-  schedule: "0 3 * * 0"
-
-auto_improve_verify:
-  # Per-issue verify workflow cron (daily): iterates every open auto-improve
-  # issue and runs a targeted before/after comparison to decide closure.
-  schedule: "0 6 * * *"
 
 # Cross-workspace improvement sharing protocol (issue #32). Phase 1 is
 # publish-only: the hub-daily-sweep workflow scans PRs merged into this
@@ -45,16 +38,6 @@ hub:
   enabled: true
   # Hub repo slug. All proposals this workspace creates go here.
   repo: "damien-robotsix/claude-auto-tune-hub"
-  # Daily sweep cron — scans PRs merged in the last 24h.
-  sweep_schedule: "0 3 * * *"
-  # Uniform lifetime (days) after which proposals are archived-closed
-  # by the hub repo's own housekeeping workflow. Informational here —
-  # the enforcement lives in the hub repo, not in this workspace.
-  proposal_lifetime_days: 7
-  # Reserved for later phases. Each entry is an owner/repo whose
-  # proposals this workspace will auto-adopt via hub-sync. Unknown
-  # origins will produce draft PRs for manual review.
-  auto_adopt_from: []
   # Local transcript publishing lane. Reuses the same hub repo as the
   # proposal lane but writes to a disjoint subtree
   # (transcripts/<workspace-slug>/<YYYY-MM-DD>/<session-id>.jsonl) and
