@@ -81,15 +81,32 @@ absent** — see Step 4.
 
 ## Step 2 — Determine the comparison window
 
-- If the issue has a PR linked in `## Related` and that PR is **merged**,
-  the window is `merged_at … now`. Parse `gh pr view <num> --json
-  mergedAt,mergeCommit,state`.
-- If the issue has a PR linked but the PR is still **open**, the window
-  is `issue.createdAt … now` (we are still pre-fix; see Step 4 for
-  handling).
-- If the issue has no linked PR, the window is `issue.createdAt … now`.
+The window defines the set of workflow runs — and, transitively, the
+Claude Code session transcripts — that count as "after the fix". A
+signal is considered "after the fix" only if the GitHub Actions run that
+produced it was **created at or after** the window start. Transcripts
+inherit the filter automatically because each transcript belongs to
+exactly one workflow run.
 
-Record this window for the `## Verification history` entry.
+Resolve `WINDOW_START` as follows:
+
+- If the issue has a PR linked in `## Related` and that PR is **merged**,
+  `WINDOW_START = pr.mergedAt`. Fetch it with
+  `gh pr view <num> --json mergedAt,mergeCommit,state`. This is the
+  typical case: we are comparing the baseline (captured at issue
+  creation) to anything that happened since the fix landed on `main`.
+- If the issue has a PR linked but the PR is still **open**,
+  `WINDOW_START = pr.createdAt`. The issue is pre-fix — the verify run
+  will only append a `pending-pr` history entry (Step 4).
+- If the issue has no linked PR at all, `WINDOW_START = issue.createdAt`.
+
+`WINDOW_END` is always "now".
+
+Record `WINDOW_START`…`WINDOW_END` for the `## Verification history`
+entry and pass `WINDOW_START` to the extractor subagent (Step 3). The
+subagent is responsible for actually filtering runs older than
+`WINDOW_START` out of its counts — see
+`.claude/agents/workflow-insights-extractor.md` for the exact contract.
 
 ---
 
@@ -103,19 +120,27 @@ prompt scoped to this fingerprint. Pass:
   key matches this one, and surface the raw counts used.
 - `TITLE=<issue title>`
 - `CATEGORY=<category>`
-- `WINDOW_START=<iso>` — the extractor should prefer runs inside this
-  window, but may fall back to discovering from the last N runs if the
-  window yields nothing.
+- `WINDOW_START=<iso-timestamp>` — **hard filter**. The extractor must
+  drop every GitHub Actions run whose `created_at` is earlier than this
+  timestamp before parsing logs or transcripts. Because each session
+  transcript is produced by exactly one workflow run, filtering runs by
+  `created_at >= WINDOW_START` also filters the transcripts for free: a
+  transcript appended by a run that started before the fix merged can
+  never enter the "after" snapshot. This is how the verify workflow
+  excludes pre-fix conversations.
 
 The subagent returns a JSON array. Filter to the candidate (if any) whose
 key matches this issue. Record:
 
-- `after_count` — the number of observations the subagent found in-window
-  that match this fingerprint. If the candidate is absent from the
-  returned array, `after_count = 0`.
-- `after_evidence` — up to 3 short excerpts.
+- `after_count` — the number of in-window observations the subagent
+  found that match this fingerprint. If the candidate is absent from the
+  returned array (or the array is empty), `after_count = 0`.
+- `after_evidence` — up to 3 short excerpts from in-window runs.
 - `WORKFLOWS_PARSED` and `CONVERSATIONS_ANALYZED` from the subagent's
-  `>>>` stdout lines.
+  `>>>` stdout lines. If `WORKFLOWS_PARSED == 0`, no runs exist in the
+  window yet — append a verify history entry with
+  `verdict=no-runs-in-window` and do not close. The next scheduled
+  verify run will try again once workflow runs accumulate.
 
 ---
 
@@ -132,11 +157,12 @@ key matches this issue. Record:
 | `solved` (closed, reopen) | yes               | yes                   | **Reopen.** `gh issue reopen <n>`, relabel `auto-improve:solved` → `auto-improve:raised`, append comment `Regression detected after previous verification. Evidence: …`, append verify history (`verdict=regression-reopened`). |
 | `solved` (closed)         | yes               | no                    | No-op. Do not reopen. Do not append a verify history entry (the issue is closed and stable). |
 
-`CLEAN_RUNS_REQUIRED` is read from `tracking.verify_runs` in
-`auto_tune_config.yml` (default: 1). If it is >1, require that many
-successive clean verify runs in `## Verification history` before closing
-on the `merged` + `after_count == 0` row — otherwise close immediately on
-the first clean run.
+There is no `verify_runs` threshold to tune: **one clean verify run is
+enough to close**. The per-issue scoped comparison against a frozen
+baseline is strong enough evidence on its own — if the extractor finds
+zero in-window matches for this fingerprint, close. If a regression
+appears later, the daily cron will detect it and reopen the issue via
+the `solved → regression-reopened` row above.
 
 ---
 

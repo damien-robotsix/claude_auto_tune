@@ -51,12 +51,6 @@ jobs:
           id=$(yq ".model_aliases.\"$alias\" // \"$alias\"" auto_tune_config.yml)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve clean-run threshold
-        id: verify
-        run: |
-          n=$(yq '.tracking.verify_runs // 1' auto_tune_config.yml)
-          echo "runs=$n" >> "$GITHUB_OUTPUT"
-
       - name: Run Auto-Improvement Verify
         uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
         with:
@@ -78,7 +72,6 @@ jobs:
             allowed to close an auto-improve issue.
 
             ISSUE_NUMBER=${{ github.event.inputs.issue_number || '' }}
-            CLEAN_RUNS_REQUIRED=${{ steps.verify.outputs.runs }}
             Today's date: $(date +%Y-%m-%d)
 
             If ISSUE_NUMBER is empty, iterate every open issue with label

@@ -33,10 +33,3 @@ auto_improve_verify:
   # Per-issue verify workflow cron (daily): iterates every open auto-improve
   # issue and runs a targeted before/after comparison to decide closure.
   schedule: "0 6 * * *"
-
-tracking:
-  # Number of successive clean verify runs required before the verify
-  # workflow closes an issue as auto-improve:solved. Keep at 1 for the new
-  # split design — per-issue verification already does a targeted before/after
-  # comparison, so one clean run is enough to close.
-  verify_runs: 1

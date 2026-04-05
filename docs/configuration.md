@@ -51,12 +51,13 @@ auto_improve_verify:
 
 ## Issue tracking
 
-```yaml
-tracking:
-  verify_runs: 1
-```
-
-- `verify_runs` — number of successive clean per-issue verify runs required before the verify workflow closes an issue as `auto-improve:solved`. Default is `1` for the split design: because the verify workflow does a targeted before/after comparison against the frozen `## Baseline (before fix)` snapshot, a single clean run is enough evidence to close. Raise this value if you want a stricter verification window.
+The split auto-improve design has no tunable verification threshold. The
+verify workflow filters signals to workflow runs created after the fix
+PR merged (`WINDOW_START = pr.mergedAt`), which makes the per-issue
+before/after comparison inherently strict: if zero in-window matches for
+the fingerprint are found, the issue is closed on that single clean
+verify run. Regressions after closure are caught by the daily verify
+cron and automatically reopen the issue.
 
 ## Claude settings
 
