@@ -6,8 +6,8 @@ on:
     - cron: '0 3 * * 0'
   workflow_dispatch:
     inputs:
-      run_count:
-        description: 'Number of recent workflow runs to analyze (default: 20)'
+      conversation_limit:
+        description: 'Max Claude Code session transcripts to analyze (workflow logs are unlimited)'
         required: false
         default: '20'
 
@@ -50,7 +50,8 @@ jobs:
             create a `proposals/` directory or bundle everything into a single
             PR.
 
-            RUN_COUNT=${{ github.event.inputs.run_count || '20' }}
+            CONVERSATION_LIMIT=${{ github.event.inputs.conversation_limit || '20' }}
+            Workflow logs to parse: all discoverable runs (no cap)
             Today's date: $(date +%Y-%m-%d)
 
           claude_args: >-

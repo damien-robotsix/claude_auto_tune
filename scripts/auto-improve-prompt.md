@@ -15,19 +15,31 @@ Do **not** dump everything into a single bundled PR or place files under a
 `proposals/` directory. Each improvement must stand on its own as a merge-ready
 change.
 
-## Step 1 — Fetch the last N workflow run IDs
+## Step 1 — Fetch workflow run IDs
+
+Fetch **all** recent workflow runs (no cap on workflows). Pagination is
+enabled so the list is limited only by GitHub's retention window and the
+default API window (typically the last several hundred runs is fine —
+don't try to pull years of history).
 
 ```bash
 gh api repos/$GITHUB_REPOSITORY/actions/runs \
   --paginate \
-  --jq '.workflow_runs[:'"$RUN_COUNT"'] | .[] | {id: .id, name: .name, created_at: .created_at, conclusion: .conclusion}' \
-  | head -n "$RUN_COUNT"
+  --jq '.workflow_runs[] | {id: .id, name: .name, created_at: .created_at, conclusion: .conclusion}' \
+  > /tmp/runs.jsonl
+echo ">>> Total runs discovered: $(wc -l < /tmp/runs.jsonl)"
 ```
 
-Collect all run IDs into a list. `$RUN_COUNT` is provided to you in the task
-invocation.
+Collect all run IDs into a list (`$RUN_IDS`). There is **no upper limit**
+for workflow log parsing — all discovered runs are analyzed in Step 2.
 
-## Step 2 — Parse each run log with the log parser
+The separate `$CONVERSATION_LIMIT` (provided to you in the task invocation,
+default 20) only caps how many **Claude Code session transcripts** are
+downloaded in Step 3.
+
+## Step 2 — Parse every run log with the log parser
+
+Iterate over **all** discovered run IDs — no slicing.
 
 ```bash
 pip install -q anthropic pyyaml
@@ -42,32 +54,43 @@ done
 echo ">>> Workflows parsed: $WORKFLOWS_PARSED"
 ```
 
-## Step 3 — Fetch and parse Claude Code session transcripts
+## Step 3 — Fetch and parse Claude Code session transcripts (cap: $CONVERSATION_LIMIT)
+
+Walk the run list in order (newest first, as returned by the API) and
+download the `claude-transcript` artifact where available. **Stop as soon
+as `$CONVERSATION_LIMIT` transcripts have been successfully analyzed.**
+Runs without a transcript artifact don't count toward the cap — keep
+going until you either hit the limit or exhaust the run list.
 
 ```bash
 CONVERSATIONS_ANALYZED=0
 for RUN_ID in $RUN_IDS; do
-  echo "=== Fetching transcript for run $RUN_ID ==="
+  if [ "$CONVERSATIONS_ANALYZED" -ge "$CONVERSATION_LIMIT" ]; then
+    echo ">>> Reached conversation cap ($CONVERSATION_LIMIT); stopping transcript collection."
+    break
+  fi
+
   ARTIFACT_ID=$(gh api repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts \
     --jq '.artifacts[] | select(.name == "claude-transcript") | .id' 2>/dev/null | head -1)
 
-  if [ -n "$ARTIFACT_ID" ]; then
-    mkdir -p /tmp/transcripts/$RUN_ID
-    gh api repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip \
-      > /tmp/transcripts/$RUN_ID/transcript.zip 2>/dev/null
-    unzip -q /tmp/transcripts/$RUN_ID/transcript.zip \
-      -d /tmp/transcripts/$RUN_ID/ 2>/dev/null || true
-
-    python3 scripts/parse-claude-transcript.py /tmp/transcripts/$RUN_ID/ \
-      >> /tmp/all-transcript-insights.jsonl \
-      || echo '{"summary":"parse failed","tool_call_count":0,"top_tools":[],"insights":[]}' \
-         >> /tmp/all-transcript-insights.jsonl
-    CONVERSATIONS_ANALYZED=$((CONVERSATIONS_ANALYZED + 1))
-  else
-    echo "No transcript artifact for run $RUN_ID"
+  if [ -z "$ARTIFACT_ID" ]; then
+    continue  # no transcript for this run — not counted against the cap
   fi
+
+  echo "=== Fetching transcript for run $RUN_ID ==="
+  mkdir -p /tmp/transcripts/$RUN_ID
+  gh api repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID/zip \
+    > /tmp/transcripts/$RUN_ID/transcript.zip 2>/dev/null
+  unzip -q /tmp/transcripts/$RUN_ID/transcript.zip \
+    -d /tmp/transcripts/$RUN_ID/ 2>/dev/null || true
+
+  python3 scripts/parse-claude-transcript.py /tmp/transcripts/$RUN_ID/ \
+    >> /tmp/all-transcript-insights.jsonl \
+    || echo '{"summary":"parse failed","tool_call_count":0,"top_tools":[],"insights":[]}' \
+       >> /tmp/all-transcript-insights.jsonl
+  CONVERSATIONS_ANALYZED=$((CONVERSATIONS_ANALYZED + 1))
 done
-echo ">>> Conversations analyzed: $CONVERSATIONS_ANALYZED"
+echo ">>> Conversations analyzed: $CONVERSATIONS_ANALYZED (cap: $CONVERSATION_LIMIT)"
 ```
 
 ### Workflow Setup (sanity check)
