@@ -1,0 +1,35 @@
+name: Config Sanity Check
+
+# Daily guard against dead keys in auto_tune_config.yml. Fails when any
+# leaf key has no reader in scripts/, .github/workflows/, or run.sh —
+# the class of bug tracked in issue #51, where config entries sit dead
+# because the workflow hardcodes a literal fallback or the feature was
+# deleted but the key lingered. See scripts/check-config-keys.py for
+# the exact matching rules.
+
+on:
+  schedule:
+    # Daily at 06:00 UTC. Cheap enough to run every day and fast
+    # feedback beats letting drift accumulate for a week.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  config-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Check auto_tune_config.yml keys
+        run: python3 scripts/check-config-keys.py
