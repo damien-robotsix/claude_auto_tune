@@ -17,10 +17,17 @@ payload shape, no shared scripts, no shared labels.
 
 Design invariants
 -----------------
-- **No LLM calls.** Pure orchestration of ``git`` + file copy. All
-  judgment ("which sessions are worth publishing?", "which lines are
-  sensitive?") lives upstream in the caller, or in the static redaction
-  regexes below.
+- **No LLM calls.** Pure orchestration of ``gh`` + ``git`` + file copy.
+  All judgment ("which sessions are worth publishing?", "which lines
+  are sensitive?") lives upstream in the caller, or in the static
+  redaction regexes below.
+- **Auth via ``gh``.** All GitHub interaction — clone, push — reuses
+  the credentials of the locally installed ``gh`` CLI. The script runs
+  ``gh auth setup-git`` on every invocation (idempotent) so a plain
+  ``git push`` inside the hub clone uses ``gh``'s token as its
+  credential helper. No separate PAT, SSH key, or ``~/.netrc`` entry
+  is needed: if ``gh auth status`` succeeds on the host, this script
+  can publish.
 - **Own-slug only.** A workspace writes to its own
   ``transcripts/<slug>/`` subtree and never touches another workspace's
   subtree. Collisions between forks are impossible.
@@ -80,7 +87,8 @@ Exit codes
 ----------
     0  success (including the no-op path when disabled)
     2  usage / configuration error
-    3  ``git`` not installed, hub clone/push failed, or auth missing
+    3  ``gh``/``git`` not installed, ``gh`` not authenticated, or hub
+       clone/push failed
     4  nothing to push (all sessions already in hub) — still soft
        success, but distinguishable for callers that want to log it
 """
@@ -268,20 +276,71 @@ def _run(
     return proc.returncode, proc.stdout, proc.stderr
 
 
+def ensure_gh_ready() -> str | None:
+    """Verify ``gh`` is installed + authenticated and register it as
+    the git credential helper for github.com. Returns an error string
+    on failure, or ``None`` on success.
+
+    This is the single point where the script learns about GitHub
+    credentials. Everything downstream (``gh repo clone``, ``git push``)
+    reuses the helper wired up here.
+    """
+    if not shutil.which("gh"):
+        return (
+            "gh CLI not found on PATH (install from https://cli.github.com/)"
+        )
+    rc, _, err = _run(["gh", "auth", "status"])
+    if rc != 0:
+        hint = err.strip() or "run `gh auth login` first"
+        return f"gh not authenticated: {hint}"
+    # Idempotent: rewrites ~/.gitconfig credential.helper for github.com
+    # to call `gh auth git-credential`. Safe to run every invocation.
+    rc, _, err = _run(["gh", "auth", "setup-git"])
+    if rc != 0:
+        return f"gh auth setup-git failed: {err.strip()}"
+    return None
+
+
+def gh_commit_identity() -> tuple[str, str]:
+    """Return (name, email) to author the hub commit as, derived from
+    the authenticated ``gh`` user. Falls back to a generic bot identity
+    if ``gh api user`` cannot be reached (should not happen after
+    ``ensure_gh_ready`` succeeds, but we stay defensive)."""
+    rc, out, _ = _run(["gh", "api", "user", "--jq", ".login"])
+    login = out.strip() if rc == 0 and out.strip() else "claude-auto-tune"
+    rc, out, _ = _run(["gh", "api", "user", "--jq", ".id"])
+    uid = out.strip() if rc == 0 and out.strip() else "0"
+    # GitHub no-reply address format — avoids leaking the user's real
+    # email into the hub commit history.
+    email = f"{uid}+{login}@users.noreply.github.com"
+    return login, email
+
+
 def ensure_hub_clone(hub_repo: str, cache_dir: Path) -> tuple[Path, str | None]:
-    """Clone the hub into ``cache_dir`` if absent, otherwise fetch.
+    """Clone the hub into ``cache_dir`` via ``gh repo clone`` if absent,
+    otherwise fetch and hard-reset to ``origin/main``.
 
     Returns (repo_dir, error).
     """
     cache_dir.mkdir(parents=True, exist_ok=True)
     repo_dir = cache_dir / "repo"
-    remote_url = f"https://github.com/{hub_repo}.git"
     if not (repo_dir / ".git").exists():
+        # `gh repo clone` writes an authenticated remote URL and
+        # inherits the credential helper wired by `gh auth setup-git`.
         rc, _, err = _run(
-            ["git", "clone", "--depth", "50", remote_url, str(repo_dir)]
+            [
+                "gh",
+                "repo",
+                "clone",
+                hub_repo,
+                str(repo_dir),
+                "--",
+                "--depth",
+                "50",
+            ]
         )
         if rc != 0:
-            return repo_dir, f"git clone {hub_repo} failed: {err.strip()}"
+            return repo_dir, f"gh repo clone {hub_repo} failed: {err.strip()}"
         return repo_dir, None
     rc, _, err = _run(
         ["git", "fetch", "origin", "main", "--depth", "50"], cwd=repo_dir
@@ -308,9 +367,22 @@ def commit_and_push(
     rc, _, err = _run(["git", "add", "transcripts"], cwd=repo_dir)
     if rc != 0:
         return False, f"git add failed: {err.strip()}"
+    name, email = gh_commit_identity()
     message = f"transcripts: publish {added} local session(s) from {slug}"
+    # Pass identity via `-c` so we never touch the user's global git
+    # config. The hub remote's credential helper is already ``gh``
+    # (set by ``ensure_gh_ready``), so the push reuses that token.
     rc, _, err = _run(
-        ["git", "commit", "-m", message],
+        [
+            "git",
+            "-c",
+            f"user.name={name}",
+            "-c",
+            f"user.email={email}",
+            "commit",
+            "-m",
+            message,
+        ],
         cwd=repo_dir,
     )
     if rc != 0:
@@ -493,6 +565,10 @@ def main() -> int:
 
     if not shutil.which("git"):
         print("error: git not found on PATH", file=sys.stderr)
+        return 3
+    gh_err = ensure_gh_ready()
+    if gh_err:
+        print(f"error: {gh_err}", file=sys.stderr)
         return 3
 
     repo_dir, err = ensure_hub_clone(hub_repo, Path(args.hub_cache))

@@ -65,4 +65,4 @@ hub:
     # Master switch for the local-transcript push lane. The script
     # (scripts/hub/push-local-transcripts.py) exits 0 without touching
     # anything when this is false.
-    enabled: false
+    enabled: true
