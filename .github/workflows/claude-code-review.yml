@@ -31,6 +31,13 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Resolve model from auto_tune_config.yml
+        id: model
+        run: |
+          alias=$(yq '.models.code_review // "opus"' auto_tune_config.yml)
+          id=$(yq ".model_aliases.\"$alias\" // \"$alias\"" auto_tune_config.yml)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
       - name: Run Claude Code Review
         id: claude-review
         uses: anthropics/claude-code-action@v1
@@ -40,6 +47,7 @@ jobs:
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          claude_args: '--model ${{ steps.model.outputs.id }}'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 

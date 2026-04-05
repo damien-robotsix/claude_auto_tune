@@ -27,6 +27,13 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Resolve model from auto_tune_config.yml
+        id: model
+        run: |
+          alias=$(yq '.models.auto_improve // "opus"' auto_tune_config.yml)
+          id=$(yq ".model_aliases.\"$alias\" // \"$alias\"" auto_tune_config.yml)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
       - name: Run Auto-Improvement Agent
         uses: anthropics/claude-code-action@v1
         with:
@@ -48,6 +55,7 @@ jobs:
             in the PR body.
 
           claude_args: >-
+            --model ${{ steps.model.outputs.id }}
             --allowed-tools
             Bash(gh api:*),
             Bash(gh run:*),
