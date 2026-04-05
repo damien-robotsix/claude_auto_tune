@@ -16,8 +16,8 @@ CLAUDE.md                 # Agent instructions read by Claude Code
 Dockerfile                # Container image used for local runs
 docker-compose.yml        # Build/orchestration for the local image
 run.sh                    # Entry point for local sessions
-auto_tune_config.yml      # Workspace configuration (models, auto-improve, log parser)
-scripts/                  # Log/transcript parsing + auto-improve prompt
+auto_tune_config.yml      # Workspace configuration (models, auto-improve, issue tracking)
+scripts/                  # Log/transcript parsing, auto-improve prompt, docs-sync prompt
 docs/                     # This documentation, published to GitHub Pages
 ```
 
@@ -32,9 +32,11 @@ Both paths share the same `CLAUDE.md`, `.claude/settings.json`, and `auto_tune_c
 
 The `auto-improve` workflow is what makes this a *self-tuning* workspace:
 
-1. Collect recent run history (logs, transcripts).
-2. Compact it through the `scripts/parse-*.py` helpers, bounded by `log_parser` limits.
+1. Collect recent run history (workflow logs in full; session transcripts capped by `auto_improve.default_conversation_limit`).
+2. Compact it through the `scripts/parse-*.py` helpers, which call the cheap model configured as `models.log_parser` for structured insight extraction.
 3. Feed the result into Claude with `scripts/auto-improve-prompt.md`.
-4. Open PRs that tweak prompts, configuration, or tooling based on what was learned.
+4. Reconcile findings against a long-term issue tracker (one persistent GitHub issue per improvement subject, carrying an `auto-improve:<state>` label) and, where possible, open a focused fix PR linked to its issue. Issues are only closed after `tracking.verify_runs` successive clean runs confirm the problem is gone.
 
-Keeping the loop narrow and the surface area small is deliberate: it makes each improvement easy to review and easy to revert.
+A second, narrower loop — the daily **docs-sync** agent defined by `scripts/docs-sync-prompt.md` — keeps pages under `docs/` aligned with recent `main` commits via the routing rules in [`docs/.docsrules`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/docs/.docsrules). It never touches code.
+
+Keeping both loops narrow and the surface area small is deliberate: it makes each improvement easy to review and easy to revert.
