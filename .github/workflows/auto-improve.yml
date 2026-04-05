@@ -44,21 +44,22 @@ jobs:
 
           prompt: |
             Read the file `scripts/auto-improve-prompt.md` — it contains your
-            full instructions for the auto-improvement task.
+            full instructions for the auto-improvement task. Follow every step
+            exactly, including the delivery model: one umbrella issue with the
+            global report, plus one focused PR per improvement subject. Do not
+            create a `proposals/` directory or bundle everything into a single
+            PR.
 
-            Run count: ${{ github.event.inputs.run_count || '20' }}
+            RUN_COUNT=${{ github.event.inputs.run_count || '20' }}
             Today's date: $(date +%Y-%m-%d)
-
-            After completing the analysis and creating proposals, create a new
-            branch named `auto-improve/$(date +%Y-%m-%d)`, commit all files
-            under `proposals/`, and open a PR against `main`. Reference issue #2
-            in the PR body.
 
           claude_args: >-
             --model ${{ steps.model.outputs.id }}
             --allowed-tools
             Bash(gh api:*),
             Bash(gh run:*),
+            Bash(gh pr:*),
+            Bash(gh issue:*),
             Bash(git *),
             Bash(pip install*),
             Bash(python3 *),
@@ -74,7 +75,8 @@ jobs:
             Read,
             Write,
             Edit,
-            Glob
+            Glob,
+            Grep
 
       - name: Upload Claude session transcript
         if: always()

@@ -1,27 +1,36 @@
 # Auto-Improvement Agent Prompt
 
-You are the auto-improvement agent for this Claude Code workspace. Your goal is
-to analyze recent workflow runs — including both the CI logs and the detailed
-Claude Code session transcripts — identify patterns and inefficiencies, and
-create a PR with concrete improvement proposals.
+You are the auto-improvement agent for this Claude Code workspace. Your goal
+is to analyze recent workflow runs — including both the CI logs and the
+detailed Claude Code session transcripts — identify concrete, actionable
+improvements, and deliver them as:
 
-## Step 1 — Fetch the last 20 workflow run IDs
+1. **One umbrella GitHub issue** containing the global report (summary of
+   findings, metrics, and a list of every spawned PR with a one-line
+   description).
+2. **One focused PR per improvement subject**, each containing the actual
+   code changes (not proposals) and a detailed explanation in the PR body.
+
+Do **not** dump everything into a single bundled PR or place files under a
+`proposals/` directory. Each improvement must stand on its own as a merge-ready
+change.
+
+## Step 1 — Fetch the last N workflow run IDs
 
 ```bash
 gh api repos/$GITHUB_REPOSITORY/actions/runs \
   --paginate \
-  --jq '.workflow_runs[:20] | .[] | {id: .id, name: .name, created_at: .created_at, conclusion: .conclusion}' \
-  | head -20
+  --jq '.workflow_runs[:'"$RUN_COUNT"'] | .[] | {id: .id, name: .name, created_at: .created_at, conclusion: .conclusion}' \
+  | head -n "$RUN_COUNT"
 ```
 
-Collect all run IDs into a list.
+Collect all run IDs into a list. `$RUN_COUNT` is provided to you in the task
+invocation.
 
-## Step 2 — Parse each run log with Haiku
-
-For each run ID, fetch its logs and pipe through the Haiku parser:
+## Step 2 — Parse each run log with the log parser
 
 ```bash
-pip install -q anthropic
+pip install -q anthropic pyyaml
 WORKFLOWS_PARSED=0
 for RUN_ID in $RUN_IDS; do
   echo "=== Parsing run $RUN_ID ==="
@@ -30,19 +39,10 @@ for RUN_ID in $RUN_IDS; do
     >> /tmp/all-insights.jsonl || echo '{"summary":"fetch failed","insights":[]}' >> /tmp/all-insights.jsonl
   WORKFLOWS_PARSED=$((WORKFLOWS_PARSED + 1))
 done
-echo ""
 echo ">>> Workflows parsed: $WORKFLOWS_PARSED"
 ```
 
-Each line in `/tmp/all-insights.jsonl` is the JSON output for one run.
-
 ## Step 3 — Fetch and parse Claude Code session transcripts
-
-Claude Code saves detailed session transcripts (tool calls, inputs, outputs) as
-JSONL files. These are uploaded as artifacts by workflows that include the
-transcript-upload step (see **Workflow Setup** below).
-
-For each run ID, download the `claude-transcript` artifact and parse it:
 
 ```bash
 CONVERSATIONS_ANALYZED=0
@@ -64,20 +64,16 @@ for RUN_ID in $RUN_IDS; do
          >> /tmp/all-transcript-insights.jsonl
     CONVERSATIONS_ANALYZED=$((CONVERSATIONS_ANALYZED + 1))
   else
-    echo "No transcript artifact for run $RUN_ID (workflow may predate transcript upload step)"
+    echo "No transcript artifact for run $RUN_ID"
   fi
 done
-echo ""
 echo ">>> Conversations analyzed: $CONVERSATIONS_ANALYZED"
 ```
 
-Each line in `/tmp/all-transcript-insights.jsonl` is the JSON output for one
-Claude Code session.
+### Workflow Setup (sanity check)
 
-### Workflow Setup
-
-For transcripts to be available, the workflow that invokes the Claude Code
-action must include an upload step immediately after the action step:
+For transcripts to be available, every workflow invoking `claude-code-action`
+must end with an upload step like:
 
 ```yaml
 - name: Upload Claude session transcript
@@ -85,71 +81,117 @@ action must include an upload step immediately after the action step:
   uses: actions/upload-artifact@v4
   with:
     name: claude-transcript
-    # Claude Code stores transcripts under ~/.claude/projects/
     path: ~/.claude/projects/**/*.jsonl
     if-no-files-found: ignore
     retention-days: 30
 ```
 
-If this step is missing from the active workflows, add a proposal for it under
-`proposals/workflows/` and note it in the PR body.
+If any active workflow is missing it, that alone becomes one of your
+improvement subjects (see Step 5).
 
-## Pipeline Summary
-
-Before synthesizing, print a quick sanity check:
-
-```bash
-WORKFLOWS_PARSED=$(wc -l < /tmp/all-insights.jsonl 2>/dev/null || echo 0)
-CONVERSATIONS_ANALYZED=$(wc -l < /tmp/all-transcript-insights.jsonl 2>/dev/null || echo 0)
-echo "============================================"
-echo "  Pipeline summary"
-echo "  Workflows parsed:        $WORKFLOWS_PARSED"
-echo "  Conversations analyzed:  $CONVERSATIONS_ANALYZED"
-echo "============================================"
-```
-
-If both counts are 0, stop here and report the issue (no runs found, permissions
-problem, etc.) rather than opening an empty PR.
-
-## Step 4 — Synthesize insights
+## Step 4 — Synthesize and cluster into improvement subjects
 
 Read all insights from both `/tmp/all-insights.jsonl` (workflow logs) and
-`/tmp/all-transcript-insights.jsonl` (Claude session transcripts) and group
-them by category. For each category with 2+ similar insights, it represents a
-real pattern worth addressing.
+`/tmp/all-transcript-insights.jsonl` (Claude session transcripts). Group them
+into **improvement subjects** where each subject is:
 
-Categories:
-- `new_workflow` — tasks that should be automated as a scheduled GitHub Actions workflow
-- `deterministic_script` — tasks Claude repeated identically; a shell/Python script would be faster and cheaper
-- `subagent_skill` — reusable capabilities that should become a Claude Code skill or subagent prompt
-- `cost_reduction` — places where Haiku or a simpler approach replaces Sonnet/Opus
-- `reliability` — recurring errors or fragile steps
-- `capability_gap` — tools or APIs Claude had to work around; a new MCP tool or skill would help
+- A single, focused change that can be shipped as one PR.
+- Supported by **at least 2 observed instances** or **1 high-confidence
+  instance** with strong evidence.
+- Scoped narrowly enough that a reviewer can understand it in a few minutes.
 
-When synthesizing, prefer cross-source corroboration: an insight that appears
-in both the workflow log and the session transcript carries higher confidence.
+Suggested categories (a subject can fit more than one):
 
-## Step 5 — Create improvement proposals
+- `reliability` — recurring errors, flaky steps, missing tool permissions
+- `cost_reduction` — swap a cheaper model where quality is unaffected
+- `new_workflow` — repeated manual work worth automating
+- `deterministic_script` — Claude repeating the same steps; a script is faster
+- `subagent_skill` — capability worth extracting into a skill/subagent
+- `capability_gap` — a missing tool or API causing workarounds
+- `docs_convention` — a rule or convention that should live in `CLAUDE.md`
 
-For each high-priority insight (or cluster of medium ones), create a concrete
-file change. Examples:
+Prefer insights that are corroborated by **both** log and transcript sources.
 
-- A new workflow in `proposals/workflows/<name>.yml`
-- A new script in `proposals/scripts/<name>.sh`
-- A new skill prompt in `proposals/skills/<name>.md`
-- An update to `CLAUDE.md` with a new convention or rule
-- A note in `proposals/cost-reduction.md` with a specific model-swap recommendation
+Aim for **3–7 improvement subjects** total. If you find more, pick the
+highest-impact ones and mention the rest in the umbrella issue as "deferred".
 
-Put all proposals under `proposals/` so they can be reviewed before merging into
-their final location.
+## Step 5 — Ship each subject as its own PR
 
-## Step 6 — Summarize and open a PR
+For **each** improvement subject, in order:
 
-Create a branch `auto-improve/<date>`, commit the proposals, and open a PR with:
-- Title: `chore: auto-improvement proposals <date>`
-- Body: a table listing each proposal, its category, and the evidence from logs
-- Reference this issue (#2) in the PR body
-- Include the pipeline summary counts: `Workflows parsed: N`, `Conversations analyzed: N`
+1. `git checkout main && git pull`
+2. Create a branch: `auto-improve/<date>-<short-slug>` (e.g.
+   `auto-improve/2026-04-05-add-gh-pr-allowed-tool`).
+3. Make the **actual** edits — modify the real files (`.github/workflows/*`,
+   `scripts/*`, `CLAUDE.md`, etc.). Do not place anything under a `proposals/`
+   directory.
+4. Keep the change minimal and self-contained. If two subjects would touch
+   the same lines, merge them into one subject instead.
+5. Commit with a clear message explaining the *why*.
+6. Push the branch and open a PR with:
+   - **Title**: concise, imperative (`fix:`, `feat:`, `chore:` prefix).
+   - **Body** (required sections):
+     - `## Problem` — what the logs/transcripts showed, with run IDs or
+       excerpts as evidence.
+     - `## Change` — what this PR modifies and why.
+     - `## Files` — bulleted list of modified files.
+     - `## Evidence` — number of observed instances, sources (log vs.
+       transcript), and confidence level (low / medium / high).
+   - Do **not** reference the umbrella issue yet — you'll link it after the
+     issue is created in Step 6.
 
-Keep the PR focused: include only proposals backed by at least 2 observed instances
-or 1 high-confidence instance with strong evidence.
+Record each opened PR's number and title in a local variable so Step 6 can
+reference them.
+
+If a subject cannot be implemented as a code change (e.g. it's purely a
+recommendation or needs human judgment), do **not** open an empty PR. Instead,
+list it in the umbrella issue under a "Recommendations (no PR)" section.
+
+## Step 6 — Open the umbrella issue with the global report
+
+After all PRs are opened, create **one** GitHub issue titled
+`Auto-improvement report <date>` with this structure:
+
+```markdown
+## Summary
+<2–4 sentences describing the scan: how many runs analyzed, overall health,
+biggest themes>
+
+## Pipeline metrics
+- Workflows parsed: <N>
+- Conversations analyzed: <N>
+- Improvement subjects identified: <N>
+- PRs opened: <N>
+
+## Proposed changes
+| PR | Category | One-line description |
+| -- | -------- | -------------------- |
+| #<num> | reliability | Add missing `gh pr:*` to auto-improve allowed-tools |
+| #<num> | cost_reduction | Switch log parser default to haiku |
+| ...    | ...          | ...                                               |
+
+## Recommendations (no PR)
+<optional — subjects that need human judgment>
+
+## Deferred
+<optional — lower-priority subjects not shipped this run>
+
+---
+Generated by the Auto-Improvement Agent.
+```
+
+Use `gh issue create` to open it, then **edit each PR body** (via
+`gh pr edit <num> --body`) to append a line `Part of #<issue-num>` so the
+links go both ways.
+
+## Step 7 — Exit criteria and guardrails
+
+- If both `WORKFLOWS_PARSED` and `CONVERSATIONS_ANALYZED` are 0, **stop**.
+  Open a single issue titled `Auto-improvement report <date> — no data` with
+  a brief explanation of why nothing was analyzed. Do not open any PRs.
+- Never modify `.env`, `*.key`, `*.pem`, `credentials.*`, or anything in
+  `.github/workflows/` without a concrete, evidence-backed reason.
+- Never force-push. Never rewrite `main`. Each PR targets `main` from its own
+  branch.
+- If a PR would touch more than ~5 files, reconsider whether it's really one
+  subject — split it or narrow the scope.
