@@ -5,7 +5,7 @@ layout: default
 
 # Workflows
 
-The repo ships three GitHub Actions workflows under `.github/workflows/`. All of them read model assignments from [`auto_tune_config.yml`](configuration.md).
+The repo ships four GitHub Actions workflows under `.github/workflows/`. All of them read model assignments from [`auto_tune_config.yml`](configuration.md).
 
 ## `claude.yml` — interactive agent
 
@@ -17,15 +17,17 @@ Use it to ask Claude to answer questions, review changes, or implement small-to-
 
 Runs on pull requests and asks Claude (using `models.code_review`) to review the diff. The review focuses on correctness, readability, and security, as laid out in [`CLAUDE.md`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/CLAUDE.md).
 
-## `auto-improve.yml` — self-tuning loop
+## `auto-improve-discover.yml` + `auto-improve-verify.yml` — self-tuning loop
 
-Runs on the cron schedule defined in `auto_improve.schedule` (and can be dispatched manually). It inspects recent workflow runs and Claude Code session transcripts, parses them via the scripts in `scripts/`, and maintains a long-term **issue tracker** for each improvement subject.
+The self-tuning loop is split into two workflows that share the `auto-improve` label namespace but own separate halves of the lifecycle.
 
-Every recurring problem becomes one persistent GitHub issue carrying the `auto-improve` label and a lifecycle label that moves through `auto-improve:raised` → `auto-improve:pr-open` → `auto-improve:merged` → `auto-improve:solved`. When the tracker can fix a problem automatically, it opens a focused PR linking back to the issue via `Fixes #<num>`; otherwise the issue stays in `raised` for human follow-up. Fixes are only closed as `solved` after `tracking.verify_runs` successive clean runs (see [Configuration](configuration.md#issue-tracking)).
+`auto-improve-discover.yml` runs on the cron schedule defined in `auto_improve.schedule` (and can be dispatched manually). It inspects recent workflow runs and Claude Code session transcripts, parses them via the scripts in `scripts/`, and maintains a long-term **issue tracker** for each improvement subject. When it creates a new issue it writes a `## Baseline (before fix)` section into the body — a frozen snapshot of the signal counts and excerpts as they were at the moment the problem was promoted to an issue. When it can fix a problem automatically, it opens a focused PR that references the issue via **`Refs #<num>`** (never `Fixes #`, `Closes #`, or `Resolves #` — GitHub's auto-close behaviour is intentionally disabled so that only the verify workflow can close). The discover workflow only advances issues along `raised → pr-open`.
+
+`auto-improve-verify.yml` runs on the cron schedule defined in `auto_improve_verify.schedule` (daily by default, and dispatchable with an `issue_number` input to verify one issue at a time). For each target issue it resolves a `WINDOW_START` timestamp — the linked PR's `mergedAt` if the fix PR has merged, otherwise the issue creation time — and passes it to the extractor subagent as a **hard filter**. The subagent then only parses workflow logs and session transcripts from GitHub Actions runs created at or after that timestamp, so conversations and logs appended *before* the fix cannot enter the "after" snapshot. The subagent is also scoped to the issue's fingerprint key so it only returns matching signals. Verify compares the in-window counts to the frozen `## Baseline (before fix)` section, appends a `## Verification history` entry, and makes the lifecycle decision. It is the only workflow allowed to advance issues to `auto-improve:merged`, close them as `auto-improve:solved`, or reopen them on regression. There is no verification threshold to tune: a single clean verify run with zero in-window matches is enough to close, and regressions after closure are caught by the daily cron.
 
 Session transcripts analyzed per run are capped by `auto_improve.default_conversation_limit`; workflow logs are always parsed in full.
 
-The goal is to let the workspace grow incrementally: when a pattern of failure or friction repeats, the loop captures the lesson rather than repeating the mistake.
+The goal is to let the workspace grow incrementally: when a pattern of failure or friction repeats, the loop captures the lesson rather than repeating the mistake, and a fix is only considered "done" once a dedicated per-issue run has confirmed the problem is actually gone.
 
 ## Docs-sync agent
 
@@ -35,7 +37,8 @@ A daily docs-sync agent keeps pages under `docs/` aligned with what landed on `m
 
 Supporting scripts live in [`scripts/`](https://github.com/damien-robotsix/claude_auto_tune/tree/main/scripts):
 
-- `auto-improve-prompt.md` — the prompt used by the auto-improve tracker.
+- `auto-improve-discover-prompt.md` — the prompt used by the discover half of the auto-improve tracker (raises/updates issues, ships PRs with `Refs #<num>`).
+- `auto-improve-verify-prompt.md` — the prompt used by the per-issue verify half of the tracker (before/after comparison, exclusive owner of `merged`/`solved` transitions and of closing auto-improve issues).
 - `docs-sync-prompt.md` — the prompt used by the daily docs-sync agent.
 - `collect-doc-relevant-diff.sh` — emits the commit list and unified diff the docs-sync agent consumes from `.scratch/`.
 - `parse-claude-transcript.py` — **deterministic** aggregator over Claude Code session JSONL files. Emits tool-call counts, error tools, repeated consecutive runs, token usage, and a sequence preview. No LLM calls.

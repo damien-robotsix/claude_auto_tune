@@ -1,0 +1,115 @@
+name: Auto-Improvement Verify
+
+# Per-issue verify half of the split auto-improve system. For one specific
+# auto-improve issue, this workflow re-runs the extractor scoped to that
+# fingerprint, produces a fresh "after" snapshot, compares it to the
+# "Baseline (before fix)" section written by the discover workflow, and
+# decides the lifecycle transition (capture baseline / stay raised / move
+# to merged / close as solved / reopen regression). It is the ONLY
+# workflow allowed to advance issues past `pr-open` and the ONLY workflow
+# allowed to close an auto-improve issue.
+
+on:
+  schedule:
+    # Runs daily at 06:00 UTC — iterates every open auto-improve issue.
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Verify a single auto-improve issue by number. Leave empty to iterate every open issue.'
+        required: false
+        default: ''
+
+jobs:
+  auto-improve-verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Inject CI sandbox rules into CLAUDE.md
+        # CI-only prompt injection. Keeps docs/ci-sandbox-rules.md as the
+        # single source of truth while leaving CLAUDE.md clean for local
+        # (Docker / IDE) runs that don't hit the allowlist or sandbox.
+        run: |
+          printf '\n\n' >> CLAUDE.md
+          cat docs/ci-sandbox-rules.md >> CLAUDE.md
+
+      - name: Resolve model from auto_tune_config.yml
+        id: model
+        run: |
+          alias=$(yq '.models.auto_improve_verify // .models.auto_improve // "opus"' auto_tune_config.yml)
+          id=$(yq ".model_aliases.\"$alias\" // \"$alias\"" auto_tune_config.yml)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+      - name: Run Auto-Improvement Verify
+        uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          additional_permissions: |
+            actions: read
+
+          prompt: |
+            Read the file `scripts/auto-improve-verify-prompt.md` — it
+            contains your full instructions. You are the **verify** half
+            of the split auto-improve tracker. For each target issue, load
+            its `## Baseline (before fix)` section, invoke the
+            `workflow-insights-extractor` subagent scoped to that issue's
+            fingerprint key to build an "after" snapshot, append a
+            `## Verification history` entry, and make the lifecycle
+            decision: capture baseline, stay raised, move to merged, close
+            as solved, or reopen on regression. You are the only workflow
+            allowed to close an auto-improve issue.
+
+            ISSUE_NUMBER=${{ github.event.inputs.issue_number || '' }}
+            Today's date: $(date +%Y-%m-%d)
+
+            If ISSUE_NUMBER is empty, iterate every open issue with label
+            `auto-improve` and run the verify procedure for each. If
+            ISSUE_NUMBER is set, verify only that single issue and exit.
+
+          claude_args: >-
+            --model ${{ steps.model.outputs.id }}
+            --allowed-tools
+            Task,
+            Bash(gh api:*),
+            Bash(gh run:*),
+            Bash(gh workflow:*),
+            Bash(gh pr:*),
+            Bash(gh issue:*),
+            Bash(gh label:*),
+            Bash(jq:*),
+            Bash(python3 *),
+            Bash(mkdir *),
+            Bash(cat *),
+            Bash(echo *),
+            Bash(unzip *),
+            Bash(wc *),
+            Bash(ls *),
+            Bash(head *),
+            Bash(find *),
+            Bash(rm *),
+            Read,
+            Write,
+            Edit,
+            Glob,
+            Grep
+
+      - name: Upload Claude session transcript
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-transcript
+          path: ~/.claude/projects/**/*.jsonl
+          if-no-files-found: ignore
+          retention-days: 30

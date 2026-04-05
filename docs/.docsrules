@@ -23,7 +23,8 @@ scripts/parse-workflow-log.py           -> docs/configuration.md
 scripts/parse-claude-transcript.py      -> docs/configuration.md
 
 # Architecture — pipeline prompts, agent shape, CLAUDE.md conventions
-scripts/auto-improve-prompt.md          -> docs/architecture.md
+scripts/auto-improve-discover-prompt.md -> docs/architecture.md
+scripts/auto-improve-verify-prompt.md   -> docs/architecture.md
 scripts/docs-sync-prompt.md             -> docs/architecture.md
 CLAUDE.md                               -> docs/architecture.md
 

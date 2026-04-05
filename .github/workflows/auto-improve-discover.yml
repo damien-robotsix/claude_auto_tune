@@ -1,4 +1,11 @@
-name: Auto-Improvement Tracker
+name: Auto-Improvement Discover
+
+# Discover half of the split auto-improve system. Parses recent workflow
+# logs + Claude Code transcripts, raises/updates tracked issues (with a
+# BEFORE-fix baseline snapshot captured at creation), and ships fix PRs
+# using "Refs #<num>" so GitHub does not auto-close the issue. Lifecycle
+# beyond raised → pr-open is owned by the sibling auto-improve-verify
+# workflow, which performs the per-issue before/after comparison.
 
 on:
   schedule:
@@ -12,7 +19,7 @@ on:
         default: '20'
 
 jobs:
-  auto-improve:
+  auto-improve-discover:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -43,13 +50,7 @@ jobs:
           id=$(yq ".model_aliases.\"$alias\" // \"$alias\"" auto_tune_config.yml)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-      - name: Resolve verification window
-        id: verify
-        run: |
-          n=$(yq '.tracking.verify_runs // 2' auto_tune_config.yml)
-          echo "runs=$n" >> "$GITHUB_OUTPUT"
-
-      - name: Run Auto-Improvement Tracker
+      - name: Run Auto-Improvement Discover
         uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -58,17 +59,19 @@ jobs:
             actions: read
 
           prompt: |
-            Read the file `scripts/auto-improve-prompt.md` — it contains your
-            full instructions. You are the auto-improvement *tracker*: each
-            recurring problem is managed as a persistent GitHub issue that
-            moves through raised → pr-open → merged → solved. There is no
-            umbrella issue. Before raising any issue, dedupe against existing
-            ones (by fingerprint key, then by semantic match). Reconcile state
-            of existing issues on every run and close those whose fix has been
-            verified for VERIFY_RUNS successive clean runs.
+            Read the file `scripts/auto-improve-discover-prompt.md` — it
+            contains your full instructions. You are the **discover** half
+            of the split auto-improve tracker: parse recent runs + Claude
+            Code transcripts, raise or update tracked issues (capturing a
+            BEFORE-fix baseline on creation), and ship focused fix PRs
+            using `Refs #<num>` (never `Fixes #`, `Closes #`, or
+            `Resolves #`). You must NOT advance issues past pr-open —
+            transitions to merged/solved are owned exclusively by the
+            sibling auto-improve-verify workflow. For every newly created
+            issue, dispatch the verify workflow with that issue number so
+            its baseline is confirmed immediately.
 
             CONVERSATION_LIMIT=${{ github.event.inputs.conversation_limit || '20' }}
-            VERIFY_RUNS=${{ steps.verify.outputs.runs }}
             Workflow logs to parse: all discoverable runs (no cap)
             Today's date: $(date +%Y-%m-%d)
 
@@ -78,6 +81,7 @@ jobs:
             Task,
             Bash(gh api:*),
             Bash(gh run:*),
+            Bash(gh workflow:*),
             Bash(gh pr:*),
             Bash(gh issue:*),
             Bash(gh label:*),

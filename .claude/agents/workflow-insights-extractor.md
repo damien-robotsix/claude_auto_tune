@@ -85,6 +85,30 @@ Your caller passes:
 - Optionally, a pre-filtered list of run IDs. If not provided, discover all
   runs with `gh api repos/$GITHUB_REPOSITORY/actions/runs --paginate --jq
   '.workflow_runs[] | {id, name, created_at, conclusion}'`.
+- Optionally, a **scoping hint** used by the per-issue verify workflow:
+  `FINGERPRINT_KEY=<slug>`, `TITLE=<short title>`, `CATEGORY=<category>`,
+  `WINDOW_START=<iso-timestamp>`. When any of these are supplied:
+
+    - `WINDOW_START` is a **hard filter**. Discover runs with
+      `gh api repos/$GITHUB_REPOSITORY/actions/runs --paginate --jq
+      '.workflow_runs[] | {id, name, created_at, conclusion}'` and drop
+      every run whose `created_at` is earlier than `WINDOW_START` before
+      parsing anything. Do not read logs, do not download transcripts,
+      and do not count signals for runs older than the window — they
+      are pre-fix by definition and must not enter the "after"
+      snapshot. Transcripts inherit the filter automatically because
+      each `claude-transcript` artifact belongs to exactly one run.
+    - `FINGERPRINT_KEY` narrows the **returned** candidate array: after
+      clustering, return only the single candidate whose `key` matches
+      (or an empty array `[]` if no signal for that fingerprint is
+      present in the filtered window). Still emit the usual `>>>`
+      progress lines so the caller can record `WORKFLOWS_PARSED` and
+      `CONVERSATIONS_ANALYZED` for the in-window counts.
+    - `TITLE` and `CATEGORY` are disambiguation hints for semantic
+      clustering when `FINGERPRINT_KEY` alone is ambiguous.
+
+  When no scoping hint is supplied, behave exactly as before and return
+  all clustered candidates over the full run history.
 
 ## Procedure
 

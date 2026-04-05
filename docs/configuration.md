@@ -13,9 +13,10 @@ The `models` section assigns a model family to each entry point:
 
 ```yaml
 models:
-  claude_code: "opus"   # main claude.yml workflow
-  code_review: "opus"   # code-review workflow
-  auto_improve: "opus"  # auto-improve workflow
+  claude_code: "opus"          # main claude.yml workflow
+  code_review: "opus"          # code-review workflow
+  auto_improve: "opus"         # auto-improve discover workflow
+  auto_improve_verify: "opus"  # per-issue auto-improve verify workflow
 ```
 
 You can use a short alias (`haiku`, `sonnet`, `opus`) or pin a full model ID (for example `claude-sonnet-4-6`).
@@ -39,19 +40,24 @@ Scripts fall back to built-in defaults if this section is missing.
 auto_improve:
   default_conversation_limit: 20
   schedule: "0 3 * * 0"
+
+auto_improve_verify:
+  schedule: "0 6 * * *"
 ```
 
-- `default_conversation_limit` — maximum number of Claude Code session transcripts the auto-improve workflow analyzes in a single pass. Workflow logs are always parsed in full (no cap).
-- `schedule` — cron expression (UTC) used by the scheduled workflow trigger.
+- `auto_improve.default_conversation_limit` — maximum number of Claude Code session transcripts the discover workflow analyzes in a single pass. Workflow logs are always parsed in full (no cap).
+- `auto_improve.schedule` — cron expression (UTC) used by the discover workflow trigger.
+- `auto_improve_verify.schedule` — cron expression (UTC) used by the per-issue verify workflow trigger. The verify workflow can also be dispatched manually with an `issue_number` input.
 
 ## Issue tracking
 
-```yaml
-tracking:
-  verify_runs: 2
-```
-
-- `verify_runs` — number of successive clean runs (no recurrence) required after a fix PR merges before the auto-improve tracker closes an issue as `auto-improve:solved`.
+The split auto-improve design has no tunable verification threshold. The
+verify workflow filters signals to workflow runs created after the fix
+PR merged (`WINDOW_START = pr.mergedAt`), which makes the per-issue
+before/after comparison inherently strict: if zero in-window matches for
+the fingerprint are found, the issue is closed on that single clean
+verify run. Regressions after closure are caught by the daily verify
+cron and automatically reopen the issue.
 
 ## Claude settings
 
