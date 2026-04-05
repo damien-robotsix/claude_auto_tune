@@ -33,12 +33,13 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 
 - When something fails or needs rework, capture the lesson so the pattern is not repeated
 - Prefer simple, direct solutions over abstractions until a pattern repeats
+- The auto-improve system is split in two: `auto-improve-discover.yml` raises/updates tracked issues and ships fix PRs using `Refs #<num>` (never `Fixes #`/`Closes #`/`Resolves #`), and `auto-improve-verify.yml` owns all per-issue before/after comparison and is the only workflow allowed to close an `auto-improve` issue.
 
 <!--
 CI-sandbox Bash rules (allowlist, no multi-op pipes, no /tmp redirection,
 no 2>&1, literal gh args, read-only workflow files) live in
 docs/ci-sandbox-rules.md and are appended to this file at runtime by the
-CI workflows (.github/workflows/claude*.yml, auto-improve.yml). They are
+CI workflows (.github/workflows/claude*.yml, auto-improve-*.yml). They are
 intentionally not inlined here so local runs stay free of CI-only
 guardrails.
 -->

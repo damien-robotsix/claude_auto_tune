@@ -10,8 +10,10 @@ models:
   claude_code: "opus"
   # Model used by the code-review workflow
   code_review: "opus"
-  # Model used by the auto-improve workflow
+  # Model used by the auto-improve discover workflow
   auto_improve: "opus"
+  # Model used by the per-issue auto-improve verify workflow
+  auto_improve_verify: "opus"
 
 # Alias → full model ID mapping. Update here when new versions are released.
 # Scripts fall back to these built-in defaults if this section is absent.
@@ -24,9 +26,17 @@ auto_improve:
   # Max Claude Code session transcripts to analyze per run. Workflow logs
   # are always analyzed in full (no cap).
   default_conversation_limit: 20
+  # Discover workflow cron (weekly): parses recent runs, raises/updates issues.
   schedule: "0 3 * * 0"
 
+auto_improve_verify:
+  # Per-issue verify workflow cron (daily): iterates every open auto-improve
+  # issue and runs a targeted before/after comparison to decide closure.
+  schedule: "0 6 * * *"
+
 tracking:
-  # Number of successive clean runs (no recurrence) required after a fix PR
-  # merges before the tracker closes the issue as auto-improve:solved.
-  verify_runs: 2
+  # Number of successive clean verify runs required before the verify
+  # workflow closes an issue as auto-improve:solved. Keep at 1 for the new
+  # split design — per-issue verification already does a targeted before/after
+  # comparison, so one clean run is enough to close.
+  verify_runs: 1

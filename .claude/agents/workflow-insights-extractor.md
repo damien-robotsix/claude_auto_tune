@@ -85,6 +85,17 @@ Your caller passes:
 - Optionally, a pre-filtered list of run IDs. If not provided, discover all
   runs with `gh api repos/$GITHUB_REPOSITORY/actions/runs --paginate --jq
   '.workflow_runs[] | {id, name, created_at, conclusion}'`.
+- Optionally, a **scoping hint** used by the per-issue verify workflow:
+  `FINGERPRINT_KEY=<slug>`, `TITLE=<short title>`, `CATEGORY=<category>`,
+  `WINDOW_START=<iso-timestamp>`. When a fingerprint key is supplied you
+  must still run the parsers over the full set of discovered runs (so the
+  counts are comparable), but you should narrow the **returned** candidate
+  array to just the one candidate whose `key` matches — emit an empty
+  array if no signal for that fingerprint is present in the window. The
+  `WINDOW_START` hint tells you which run creation time to filter from;
+  runs older than that should be excluded from the scoped counts. When no
+  hint is supplied, behave exactly as before and return all clustered
+  candidates.
 
 ## Procedure
 
