@@ -27,3 +27,8 @@ auto_improve:
   # are always analyzed in full (no cap).
   default_conversation_limit: 20
   schedule: "0 3 * * 0"
+
+tracking:
+  # Number of successive clean runs (no recurrence) required after a fix PR
+  # merges before the tracker closes the issue as auto-improve:solved.
+  verify_runs: 2

@@ -1,4 +1,4 @@
-name: Auto-Improvement Agent
+name: Auto-Improvement Tracker
 
 on:
   schedule:
@@ -34,7 +34,13 @@ jobs:
           id=$(yq ".model_aliases.\"$alias\" // \"$alias\"" auto_tune_config.yml)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
-      - name: Run Auto-Improvement Agent
+      - name: Resolve verification window
+        id: verify
+        run: |
+          n=$(yq '.tracking.verify_runs // 2' auto_tune_config.yml)
+          echo "runs=$n" >> "$GITHUB_OUTPUT"
+
+      - name: Run Auto-Improvement Tracker
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -44,13 +50,16 @@ jobs:
 
           prompt: |
             Read the file `scripts/auto-improve-prompt.md` — it contains your
-            full instructions for the auto-improvement task. Follow every step
-            exactly, including the delivery model: one umbrella issue with the
-            global report, plus one focused PR per improvement subject. Do not
-            create a `proposals/` directory or bundle everything into a single
-            PR.
+            full instructions. You are the auto-improvement *tracker*: each
+            recurring problem is managed as a persistent GitHub issue that
+            moves through raised → pr-open → merged → solved. There is no
+            umbrella issue. Before raising any issue, dedupe against existing
+            ones (by fingerprint key, then by semantic match). Reconcile state
+            of existing issues on every run and close those whose fix has been
+            verified for VERIFY_RUNS successive clean runs.
 
             CONVERSATION_LIMIT=${{ github.event.inputs.conversation_limit || '20' }}
+            VERIFY_RUNS=${{ steps.verify.outputs.runs }}
             Workflow logs to parse: all discoverable runs (no cap)
             Today's date: $(date +%Y-%m-%d)
 
@@ -61,6 +70,8 @@ jobs:
             Bash(gh run:*),
             Bash(gh pr:*),
             Bash(gh issue:*),
+            Bash(gh label:*),
+            Bash(jq:*),
             Bash(git *),
             Bash(pip install*),
             Bash(python3 *),
