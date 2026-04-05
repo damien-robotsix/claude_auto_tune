@@ -38,5 +38,6 @@ Supporting scripts live in [`scripts/`](https://github.com/damien-robotsix/claud
 - `auto-improve-prompt.md` — the prompt used by the auto-improve tracker.
 - `docs-sync-prompt.md` — the prompt used by the daily docs-sync agent.
 - `collect-doc-relevant-diff.sh` — emits the commit list and unified diff the docs-sync agent consumes from `.scratch/`.
-- `parse-claude-transcript.py` — parses Claude Code session transcripts into a compact summary, then calls the model configured as `models.log_parser` for structured insight extraction.
-- `parse-workflow-log.py` — parses raw workflow logs and calls the same `models.log_parser` model for insight extraction.
+- `parse-claude-transcript.py` — **deterministic** aggregator over Claude Code session JSONL files. Emits tool-call counts, error tools, repeated consecutive runs, token usage, and a sequence preview. No LLM calls.
+- `parse-workflow-log.py` — **deterministic** regex-based signal extractor over raw GitHub Actions logs. Emits counts and samples for errors, tool denials, workflow-permission rejections, HTTP errors, non-zero exits, retries, timeouts, and rate limits. No LLM calls.
+- All LLM-side reasoning over the output of these two scripts is handled by the `workflow-insights-extractor` subagent at [`.claude/agents/workflow-insights-extractor.md`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/.claude/agents/workflow-insights-extractor.md), which the auto-improve tracker invokes via the Task tool.

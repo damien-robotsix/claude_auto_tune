@@ -33,8 +33,8 @@ Both paths share the same `CLAUDE.md`, `.claude/settings.json`, and `auto_tune_c
 The `auto-improve` workflow is what makes this a *self-tuning* workspace:
 
 1. Collect recent run history (workflow logs in full; session transcripts capped by `auto_improve.default_conversation_limit`).
-2. Compact it through the `scripts/parse-*.py` helpers, which call the cheap model configured as `models.log_parser` for structured insight extraction.
-3. Feed the result into Claude with `scripts/auto-improve-prompt.md`.
+2. Compact it through the **deterministic** `scripts/parse-*.py` helpers (regex/counters only; no LLM calls, no credentials).
+3. Feed the result into Claude with `scripts/auto-improve-prompt.md`, which delegates the clustering/reasoning step to the `workflow-insights-extractor` subagent (`.claude/agents/workflow-insights-extractor.md`) via the Task tool. That subagent is the *only* component that reasons over the deterministic signals.
 4. Reconcile findings against a long-term issue tracker (one persistent GitHub issue per improvement subject, carrying an `auto-improve:<state>` label) and, where possible, open a focused fix PR linked to its issue. Issues are only closed after `tracking.verify_runs` successive clean runs confirm the problem is gone.
 
 A second, narrower loop — the daily **docs-sync** agent defined by `scripts/docs-sync-prompt.md` — keeps pages under `docs/` aligned with recent `main` commits via the routing rules in [`docs/.docsrules`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/docs/.docsrules). It never touches code.
