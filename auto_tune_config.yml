@@ -27,7 +27,3 @@ auto_improve:
   # are always analyzed in full (no cap).
   default_conversation_limit: 20
   schedule: "0 3 * * 0"
-
-log_parser:
-  max_log_chars: 40000
-  max_summary_chars: 30000
