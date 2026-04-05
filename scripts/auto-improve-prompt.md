@@ -189,8 +189,19 @@ links go both ways.
 - If both `WORKFLOWS_PARSED` and `CONVERSATIONS_ANALYZED` are 0, **stop**.
   Open a single issue titled `Auto-improvement report <date> — no data` with
   a brief explanation of why nothing was analyzed. Do not open any PRs.
-- Never modify `.env`, `*.key`, `*.pem`, `credentials.*`, or anything in
-  `.github/workflows/` without a concrete, evidence-backed reason.
+- Never modify `.env`, `*.key`, `*.pem`, or `credentials.*`.
+- **Do not try to push changes under `.github/workflows/`.** The GitHub App
+  token this agent runs under does **not** have the `workflows` permission,
+  so any push that edits a workflow file is rejected with:
+
+  ```
+  refusing to allow a GitHub App to create or update workflow
+  `.github/workflows/<file>.yml` without `workflows` permission
+  ```
+
+  If an improvement subject would require a workflow change, list it in the
+  umbrella issue under **Recommendations (no PR)** with a concrete diff the
+  human maintainer can apply, instead of opening a PR that cannot merge.
 - Never force-push. Never rewrite `main`. Each PR targets `main` from its own
   branch.
 - If a PR would touch more than ~5 files, reconsider whether it's really one
