@@ -1,7 +1,8 @@
 # CI sandbox — Bash command rules
 
 When running inside `anthropics/claude-code-action@v1` (the claude.yml,
-claude-code-review.yml, auto-improve-discover.yml, and auto-improve-verify.yml workflows), Bash tool calls are
+claude-code-review.yml, auto-improve-discover.yml, auto-improve-verify.yml,
+and hub-daily-sweep.yml workflows), Bash tool calls are
 restricted to the `--allowed-tools` list in the workflow and are further
 filtered by a sandbox. To avoid wasting tool calls on rejected commands,
 follow these rules:
