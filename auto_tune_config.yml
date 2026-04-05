@@ -33,3 +33,25 @@ auto_improve_verify:
   # Per-issue verify workflow cron (daily): iterates every open auto-improve
   # issue and runs a targeted before/after comparison to decide closure.
   schedule: "0 6 * * *"
+
+# Cross-workspace improvement sharing protocol (issue #32). Phase 1 is
+# publish-only: the hub-daily-sweep workflow scans PRs merged into this
+# repo's default branch and opens proposal issues in the hub repo for
+# generalizable changes. Later phases will add hub-sync (relevance check)
+# and hub-report (adoption outcome reporting).
+hub:
+  # Master switch. When false, the hub-daily-sweep workflow runs but
+  # exits immediately without touching the hub repo.
+  enabled: false
+  # Hub repo slug. All proposals this workspace creates go here.
+  repo: "damien-robotsix/claude-auto-tune-hub"
+  # Daily sweep cron — scans PRs merged in the last 24h.
+  sweep_schedule: "0 3 * * *"
+  # Uniform lifetime (days) after which proposals are archived-closed
+  # by the hub repo's own housekeeping workflow. Informational here —
+  # the enforcement lives in the hub repo, not in this workspace.
+  proposal_lifetime_days: 7
+  # Reserved for later phases. Each entry is an owner/repo whose
+  # proposals this workspace will auto-adopt via hub-sync. Unknown
+  # origins will produce draft PRs for manual review.
+  auto_adopt_from: []
