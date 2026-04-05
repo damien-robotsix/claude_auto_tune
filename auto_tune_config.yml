@@ -23,7 +23,9 @@ model_aliases:
   opus: "claude-opus-4-6"
 
 auto_improve:
-  default_run_count: 20
+  # Max Claude Code session transcripts to analyze per run. Workflow logs
+  # are always analyzed in full (no cap).
+  default_conversation_limit: 20
   schedule: "0 3 * * 0"
 
 log_parser:
