@@ -38,3 +38,7 @@ follow these rules:
   that touch `.github/workflows/**` are rejected at the remote. If a fix
   needs a workflow change, surface it as a recommendation with a diff
   rather than editing the file.
+- **`.claude/agents/` is writable.** Agent definition files under
+  `.claude/agents/` are regular repo files — you may read, edit, and
+  commit changes to them like any other source file. Do not self-restrict
+  writes to this directory.

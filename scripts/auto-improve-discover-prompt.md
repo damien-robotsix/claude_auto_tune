@@ -261,8 +261,21 @@ with a small, targeted code change:
    - Relabel: remove `auto-improve:raised`, add `auto-improve:pr-open`.
 
 If an issue cannot be fixed automatically (requires human judgment, external
-access, or is purely advisory), leave it in `raised` state. Add a comment
-explaining why it wasn't auto-fixed.
+access, or is purely advisory), leave it in `raised` state. Post a comment
+that begins with `@claude` followed by clear implementation instructions
+(the concrete diff or steps needed). This triggers the `claude.yml`
+workflow which runs with a different tool allowlist and may succeed where
+this workflow cannot. Example:
+
+```markdown
+@claude Please apply the following fix for #<issue-num>:
+
+<concrete diff or step-by-step instructions>
+```
+
+If the fix genuinely requires human judgment and should **not** be
+attempted automatically, say so explicitly in the comment without
+the `@claude` prefix.
 
 Cap yourself at **5 new PRs per run** — if more than 5 `raised` issues are
 auto-fixable, ship the 5 highest-impact ones and leave the rest.
@@ -322,9 +335,12 @@ can read the full state by filtering issues by the `auto-improve` label.
   ```
 
   If an improvement subject requires a workflow change, **still raise (or
-  update) the tracked issue** for it, but do not open a PR. Instead, add a
-  comment on the issue containing a concrete diff the human maintainer can
-  apply, and leave the issue in `auto-improve:raised` state.
+  update) the tracked issue** for it, but do not open a PR. Instead, post
+  a comment on the issue starting with `@claude` followed by a concrete
+  diff and implementation instructions — this triggers the `claude.yml`
+  workflow to attempt the fix. If the change truly requires human review
+  (e.g. workflow permission changes), omit `@claude` and address the
+  comment to the maintainer instead.
 - If `WORKFLOWS_PARSED` and `CONVERSATIONS_ANALYZED` are both 0, exit without
   modifying any issues or opening any PRs.
 - PR bodies, commit messages, and PR titles must never contain the strings
