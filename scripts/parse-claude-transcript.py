@@ -35,10 +35,61 @@ TOP_N = 20
 SEQUENCE_PREVIEW_LEN = 100
 
 
+def _extract_error_text(block: dict) -> str:
+    """Extract the text content from a tool_result error block."""
+    content = block.get("content", "")
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                parts.append(item.get("text", ""))
+        return " ".join(parts)
+    return ""
+
+
+# Patterns that indicate network / auth / infrastructure errors — not
+# controllable by prompt guidance or CLAUDE.md rules.
+_NETWORK_AUTH_PATTERNS = [
+    "could not read username",
+    "could not read password",
+    "authentication failed",
+    "bad credentials",
+    "http 401",
+    "http 403",
+    "tls handshake timeout",
+    "connection reset by peer",
+    "connection refused",
+    "connection timed out",
+    "no such host",
+    "network is unreachable",
+    "dns lookup failed",
+    "certificate",
+    "ssl",
+    "econnrefused",
+    "econnreset",
+    "etimedout",
+    "fetch first",
+    "failed to push some refs",
+    "remote: invalid username or password",
+]
+
+
+def _categorize_error(error_text: str) -> str:
+    """Classify an error as 'network_auth' or 'controllable'."""
+    lower = error_text.lower()
+    for pattern in _NETWORK_AUTH_PATTERNS:
+        if pattern in lower:
+            return "network_auth"
+    return "controllable"
+
+
 def extract_tool_calls(lines: list[str]) -> dict:
     """Walk JSONL lines and return a structured activity summary."""
     tool_counter: Counter = Counter()
     error_tools: list[str] = []
+    error_categories: list[str] = []
     tool_sequences: list[str] = []
     total_input_tokens = 0
     total_output_tokens = 0
@@ -82,6 +133,9 @@ def extract_tool_calls(lines: list[str]) -> dict:
                 if isinstance(block, dict) and block.get("type") == "tool_result":
                     if block.get("is_error") and tool_sequences:
                         error_tools.append(tool_sequences[-1])
+                        error_text = _extract_error_text(block)
+                        category = _categorize_error(error_text)
+                        error_categories.append(category)
 
     # Repeated consecutive-run detection: runs of 3+ identical calls in a
     # row are a strong signal that a loop could be replaced by a single
@@ -98,17 +152,27 @@ def extract_tool_calls(lines: list[str]) -> dict:
         i = j
 
     error_counter = Counter(error_tools)
+    category_counter = Counter(error_categories)
 
     preview = tool_sequences[:SEQUENCE_PREVIEW_LEN]
     sequence_preview = " → ".join(preview)
     if len(tool_sequences) > SEQUENCE_PREVIEW_LEN:
         sequence_preview += f" … (+{len(tool_sequences) - SEQUENCE_PREVIEW_LEN} more)"
 
+    total_errors = len(error_tools)
+    controllable_errors = category_counter.get("controllable", 0)
+    network_auth_errors = category_counter.get("network_auth", 0)
+
     return {
         "tool_call_count": sum(tool_counter.values()),
         "top_tools": [t for t, _ in tool_counter.most_common(5)],
         "tool_counts": dict(tool_counter.most_common(TOP_N)),
         "error_tools": dict(error_counter.most_common(TOP_N)),
+        "error_categories": {
+            "total": total_errors,
+            "controllable": controllable_errors,
+            "network_auth": network_auth_errors,
+        },
         "repeated_sequences": repeated[:TOP_N],
         "token_usage": {
             "input_tokens": total_input_tokens,
