@@ -15,6 +15,29 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 - Keep changes scoped to one task — avoid unrelated modifications
 - Run the test suite if one exists before finalizing changes
 
+## Avoiding tool-call errors
+
+Every failed tool call wastes a round-trip and tokens. Follow these rules to
+keep the error rate low:
+
+### Prefer dedicated tools over Bash
+- **Read files** → use `Read`, not `cat` / `head` / `tail` / `sed`
+- **Search file contents** → use `Grep`, not `grep` / `rg`
+- **Find files by name** → use `Glob`, not `find` / `ls`
+- **Edit files** → use `Edit`, not `sed` / `awk`
+- **Create files** → use `Write`, not `echo` / `cat <<EOF`
+- Reserve `Bash` for commands that genuinely require shell execution (git, gh, python3, npm, etc.)
+
+### Guard against Edit / Write failures
+- **Always `Read` before `Edit` or `Write`** — the tools reject calls on unread files
+- **Verify the file exists** before editing — use `Glob` or `Read` first if you are unsure about the path
+- **Ensure `old_string` is unique** in the file — if it isn't, include more surrounding context or use `replace_all`
+
+### Guard against Bash failures
+- **Check that commands and paths exist** before running them — a quick `which <cmd>` or `ls <dir>` avoids "command not found" / "No such file" errors
+- **Do not assume tools are installed** — the Docker image and CI runner have a fixed set of packages; if unsure, verify first
+- **Avoid complex shell pipelines** when a single Python one-liner (`python3 -c '...'`) is clearer and less error-prone
+
 ## Code review
 
 - Focus on correctness, readability, and security
