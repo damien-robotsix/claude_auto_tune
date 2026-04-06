@@ -142,7 +142,7 @@ Your caller passes:
    skip date subdirectories whose name is earlier than the
    `WINDOW_START` date (the hub uses `YYYY-MM-DD` folder names, which
    sort lexicographically as dates). If the directory is missing or
-   empty, skip silently — a fork without `HUB_READ_TOKEN` provisioned,
+   empty, skip silently — a fork without `HUB_TOKEN` provisioned,
    or one that has not enabled `hub.local_transcripts`, will always see
    it empty and that is expected. Emit `>>> Hub-local transcripts
    analyzed: <N>` where N is the number of `*.jsonl` files aggregated
