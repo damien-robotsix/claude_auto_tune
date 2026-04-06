@@ -255,6 +255,36 @@ def ensure_canonical_labels(
     return labels
 
 
+def _extract_issue_number(url: str) -> str | None:
+    """Extract the issue number from a GitHub issue URL."""
+    # URL looks like https://github.com/owner/repo/issues/42
+    parts = url.rstrip("/").split("/")
+    if len(parts) >= 2 and parts[-2] == "issues":
+        return parts[-1]
+    return None
+
+
+def _apply_labels_fallback(
+    hub_repo: str, issue_number: str, labels: list[str]
+) -> None:
+    """Explicitly apply labels via ``gh issue edit`` as a fallback.
+
+    ``gh issue create --label`` can silently drop labels under certain
+    token permission configurations. This ensures labels are applied
+    even when that happens."""
+    if not labels:
+        return
+    args = ["issue", "edit", issue_number, "--repo", hub_repo]
+    for label in labels:
+        args.extend(["--add-label", label])
+    rc, _stdout, err = _run_gh(args)
+    if rc != 0:
+        _ci_warning(
+            f"fallback label application failed for issue #{issue_number}: "
+            f"{err.strip() if err else f'exit {rc}'}"
+        )
+
+
 def open_proposal(
     hub_repo: str,
     title: str,
@@ -277,6 +307,12 @@ def open_proposal(
     if rc != 0:
         return None, (err or stdout or f"gh exited with {rc}").strip()
     url = stdout.strip().splitlines()[-1] if stdout.strip() else None
+    # Fallback: explicitly apply labels in case gh issue create silently
+    # dropped them (can happen with certain token permission configs).
+    if url:
+        issue_num = _extract_issue_number(url)
+        if issue_num:
+            _apply_labels_fallback(hub_repo, issue_num, labels)
     return url, None
 
 
