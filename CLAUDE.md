@@ -22,7 +22,12 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 - Suggest improvements only when they meaningfully improve the code
 - Be specific — reference exact lines and propose concrete fixes
 - To gather PR context, use `python3 scripts/collect-pr-review-context.py <pr-number>` instead of issuing multiple `gh api` / `gh pr view` Bash calls. It returns PR metadata, diff, linked issues, comments, and check-run status as a single JSON bundle.
-- Prefer direct tool calls (`Read`, `Grep`, `Glob`) over spawning `Agent` subagents for simple lookups — each subagent adds token overhead and latency. Reserve `Agent` for genuinely complex, multi-step research that benefits from an isolated context window.
+- **Do NOT spawn `Agent` subagents for simple lookups.** Use `Read`, `Grep`, or `Glob` directly — they are faster and cheaper. Each `Agent` subagent adds ~5k tokens of overhead. Specifically:
+  - To read a file or check its contents → `Read`
+  - To find files by name/pattern → `Glob`
+  - To search code for a string or regex → `Grep`
+  - To check a function signature or class definition → `Grep` or `Read`
+  - **Only** use `Agent` when the task genuinely requires multi-step exploration across many files where you cannot predict the search path in advance (e.g., tracing a complex call chain through 5+ files). A sequence of 2+ consecutive `Agent` calls is almost always wrong — use direct tools instead.
 
 ## Safety rules
 
