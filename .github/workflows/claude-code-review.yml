@@ -55,7 +55,14 @@ jobs:
           allowed_bots: 'claude'
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          prompt: |
+            IMPORTANT: Before issuing any `gh pr`, `gh api`, or `git diff`
+            calls, run `python3 scripts/collect-pr-review-context.py ${{ github.event.pull_request.number }}`
+            and read the JSON it emits. It returns PR metadata, diff, linked
+            issues, comments, and check-run status in a single call —
+            eliminating the need for sequential `gh` Bash chains.
+
+            /code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
           claude_args: >-
             --model ${{ steps.model.outputs.id }}
             --allowed-tools
