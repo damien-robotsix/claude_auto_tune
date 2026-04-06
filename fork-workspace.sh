@@ -279,7 +279,7 @@ fi
 
 info "Initializing git repository..."
 cd "$TARGET_DIR"
-git init -q
+git init -q -b main
 
 if [ -n "$GITHUB_REPO" ]; then
     git remote add origin "https://github.com/$GITHUB_REPO.git"
