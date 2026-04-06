@@ -22,6 +22,7 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 - Suggest improvements only when they meaningfully improve the code
 - Be specific — reference exact lines and propose concrete fixes
 - To gather PR context, use `python3 scripts/collect-pr-review-context.py <pr-number>` instead of issuing multiple `gh api` / `gh pr view` Bash calls. It returns PR metadata, diff, linked issues, comments, and check-run status as a single JSON bundle.
+- Prefer direct tool calls (`Read`, `Grep`, `Glob`) over spawning `Agent` subagents for simple lookups — each subagent adds token overhead and latency. Reserve `Agent` for genuinely complex, multi-step research that benefits from an isolated context window.
 
 ## Safety rules
 
