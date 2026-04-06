@@ -64,7 +64,7 @@ hub:
   enabled: true
   repo: "damien-robotsix/claude-auto-tune-hub"
   local_transcripts:
-    enabled: false
+    enabled: true
 ```
 
 - `hub.enabled` — master switch for every lane. When false, all hub scripts and workflows exit without touching anything.

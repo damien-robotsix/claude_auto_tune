@@ -11,7 +11,7 @@ The workspace is intentionally small. Everything you need to understand it fits 
 
 ```
 .claude/settings.json     # Shared Claude Code settings (tracked in git)
-.github/workflows/        # CI workflows: claude, claude-code-review, auto-improve-discover, auto-improve-verify
+.github/workflows/        # CI workflows (7): claude, claude-code-review, auto-improve-discover, auto-improve-verify, hub-daily-sweep, docs-sync, config-sanity
 CLAUDE.md                 # Agent instructions read by Claude Code
 Dockerfile                # Container image used for local runs
 docker-compose.yml        # Build/orchestration for the local image
