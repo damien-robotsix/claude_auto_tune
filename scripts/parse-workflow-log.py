@@ -95,7 +95,8 @@ PATTERNS: list[tuple[str, "re.Pattern[str]"]] = [
         "retries",
         re.compile(r"(?i)\b(?:retry|retrying|attempt\s+\d+\s+of\s+\d+|backing off)\b"),
     ),
-    # Timeouts / cancellations.
+    # Timeouts / cancellations.  The marketplace-cache informational line
+    # is excluded via SUPPRESSIONS below so it does not produce false positives.
     (
         "timeouts",
         re.compile(r"(?i)\b(?:timed? ?out|timeout|deadline exceeded|cancell?ed)\b"),
@@ -106,6 +107,15 @@ PATTERNS: list[tuple[str, "re.Pattern[str]"]] = [
         re.compile(r"(?i)\b(?:rate[- ]?limit(?:ed|ing)?|too many requests|429)\b"),
     ),
 ]
+
+# Per-category suppression patterns.  If a line matches a PATTERN *and* also
+# matches the corresponding suppression regex, the hit is silently discarded.
+# This keeps the PATTERNS list stable while filtering out known false positives.
+SUPPRESSIONS: dict[str, "re.Pattern[str]"] = {
+    "timeouts": re.compile(
+        r"(?i)(?:Refreshing marketplace cache|Cloning repository) \(timeout:",
+    ),
+}
 
 
 def _clean_line(raw: str) -> str:
@@ -133,6 +143,9 @@ def extract_signals(lines: Iterable[str]) -> dict:
         log_bytes += len(raw)
         for name, pat in PATTERNS:
             if pat.search(raw):
+                suppression = SUPPRESSIONS.get(name)
+                if suppression and suppression.search(raw):
+                    continue
                 counts[name] += 1
                 if len(samples[name]) < SAMPLE_CAP:
                     samples[name].append({"line": lineno, "text": _clean_line(raw)})
