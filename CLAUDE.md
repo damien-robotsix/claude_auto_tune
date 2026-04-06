@@ -38,6 +38,38 @@ keep the error rate low:
 - **Do not assume tools are installed** — the Docker image and CI runner have a fixed set of packages; if unsure, verify first
 - **Avoid complex shell pipelines** when a single Python one-liner (`python3 -c '...'`) is clearer and less error-prone
 
+## Gathering GitHub context efficiently
+
+These rules apply to **all agents** (review, hub-local, auto-improve, general),
+not just code review sessions.
+
+- **For PR context** (metadata, diff, linked issues, comments, check-run
+  status), use `python3 scripts/collect-pr-review-context.py <pr-number>`
+  instead of issuing multiple `gh api` / `gh pr view` / `gh pr diff` Bash
+  calls. It returns everything in a single JSON bundle.
+- **Never issue parallel `gh` Bash calls.** When multiple `gh pr *` or
+  `gh api` calls are dispatched in one assistant turn, the first failure
+  cancels all siblings — wasting every queued call. If you must use `gh`
+  directly, issue calls one at a time, sequentially.
+- **Avoid long consecutive `gh` Bash chains.** If you find yourself making
+  5+ sequential `gh` calls (e.g., polling `gh run view`, looping over
+  `gh issue view`, or calling `gh api` repeatedly), stop and consider:
+  - Can `scripts/collect-pr-review-context.py` provide this in one call?
+  - Can a single `gh api` call with GraphQL replace multiple REST calls?
+  - Can a `python3 -c` script batch the work into one process?
+- **Do NOT spawn `Agent` subagents for simple lookups.** Use `Read`, `Grep`,
+  or `Glob` directly — they are faster and cheaper. Each `Agent` subagent
+  adds ~5k tokens of overhead. Specifically:
+  - To read a file or check its contents → `Read`
+  - To find files by name/pattern → `Glob`
+  - To search code for a string or regex → `Grep`
+  - To check a function signature or class definition → `Grep` or `Read`
+  - **Only** use `Agent` when the task genuinely requires multi-step
+    exploration across many files where you cannot predict the search path
+    in advance (e.g., tracing a complex call chain through 5+ files). A
+    sequence of 2+ consecutive `Agent` calls is almost always wrong — use
+    direct tools instead.
+
 ## Code review
 
 - Focus on correctness, readability, and security
@@ -45,13 +77,6 @@ keep the error rate low:
 - Suggest improvements only when they meaningfully improve the code
 - Be specific — reference exact lines and propose concrete fixes
 - To gather PR context, use `python3 scripts/collect-pr-review-context.py <pr-number>` instead of issuing multiple `gh api` / `gh pr view` Bash calls. It returns PR metadata, diff, linked issues, comments, and check-run status as a single JSON bundle.
-- **Do NOT issue parallel `gh pr *` or `gh api` Bash calls.** When multiple parallel `gh` Bash calls are dispatched in one assistant turn, the first failure cancels all siblings — wasting every queued call. Always gather PR context with a single `scripts/collect-pr-review-context.py` call. If you must use `gh` directly, issue calls sequentially, never in parallel.
-- **Do NOT spawn `Agent` subagents for simple lookups.** Use `Read`, `Grep`, or `Glob` directly — they are faster and cheaper. Each `Agent` subagent adds ~5k tokens of overhead. Specifically:
-  - To read a file or check its contents → `Read`
-  - To find files by name/pattern → `Glob`
-  - To search code for a string or regex → `Grep`
-  - To check a function signature or class definition → `Grep` or `Read`
-  - **Only** use `Agent` when the task genuinely requires multi-step exploration across many files where you cannot predict the search path in advance (e.g., tracing a complex call chain through 5+ files). A sequence of 2+ consecutive `Agent` calls is almost always wrong — use direct tools instead.
 
 ## Safety rules
 
