@@ -42,16 +42,29 @@ lifecycle state is encoded in a second label:
 | `auto-improve:merged`    | The fix PR merged; issue is awaiting verify.        | verify   |
 | `auto-improve:solved`    | Verified not recurring. Issue closed.               | verify   |
 
+### Triage flags (additive — coexist with the state label above)
+
+| Label                       | Meaning                                                        | Owner    |
+| --------------------------- | -------------------------------------------------------------- | -------- |
+| `auto-improve:needs-human`  | Cannot be auto-fixed; requires human judgment or access.       | discover |
+| `auto-improve:waiting-data` | Not enough signal yet; waiting for more runs before acting.    | verify   |
+
+These are informational flags, not state labels. They coexist with exactly
+one state label. Remove `needs-human` when a fix PR is opened (the issue is
+no longer blocked on a human). Remove `waiting-data` once the verify
+workflow has enough runs to make a decision.
+
 Label invariants (enforce on every run):
-- At most one state label per issue.
+- At most one **state** label per issue.
 - `auto-improve` is always present.
 - Closed issues only carry `auto-improve:solved`.
+- Triage flags are removed when they no longer apply.
 
 If any base or state label is missing from the repository, create it at the
 start of the run:
 
 ```bash
-for L in auto-improve auto-improve:raised auto-improve:pr-open auto-improve:merged auto-improve:solved; do
+for L in auto-improve auto-improve:raised auto-improve:pr-open auto-improve:merged auto-improve:solved auto-improve:needs-human auto-improve:waiting-data; do
   gh label create "$L" --force 2>/dev/null || true
 done
 ```
@@ -259,13 +272,16 @@ with a small, targeted code change:
 6. After the PR opens, update the corresponding issue:
    - Append the PR link to `## Related`.
    - Relabel: remove `auto-improve:raised`, add `auto-improve:pr-open`.
+   - Remove `auto-improve:needs-human` if present (the issue is no longer
+     blocked on a human).
 
 If an issue cannot be fixed automatically (requires human judgment, external
-access, or is purely advisory), leave it in `raised` state. Post a comment
-that begins with `@claude` followed by clear implementation instructions
-(the concrete diff or steps needed). This triggers the `claude.yml`
-workflow which runs with a different tool allowlist and may succeed where
-this workflow cannot. Example:
+access, or is purely advisory), leave it in `raised` state and **add the
+`auto-improve:needs-human` label** so humans can filter actionable issues.
+Post a comment that begins with `@claude` followed by clear implementation
+instructions (the concrete diff or steps needed). This triggers the
+`claude.yml` workflow which runs with a different tool allowlist and may
+succeed where this workflow cannot. Example:
 
 ```markdown
 @claude Please apply the following fix for #<issue-num>:
@@ -275,7 +291,8 @@ this workflow cannot. Example:
 
 If the fix genuinely requires human judgment and should **not** be
 attempted automatically, say so explicitly in the comment without
-the `@claude` prefix.
+the `@claude` prefix. Ensure the `auto-improve:needs-human` label is
+present on the issue.
 
 Cap yourself at **5 new PRs per run** — if more than 5 `raised` issues are
 auto-fixable, ship the 5 highest-impact ones and leave the rest.

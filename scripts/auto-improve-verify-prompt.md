@@ -40,10 +40,23 @@ loop over other issues yourself.
 | `auto-improve:merged`    | The fix PR merged; awaiting verify.           | **you**  |
 | `auto-improve:solved`    | Verified not recurring. Issue closed.         | **you**  |
 
+### Triage flags (additive — coexist with the state label above)
+
+| Label                       | Meaning                                                        | Owner    |
+| --------------------------- | -------------------------------------------------------------- | -------- |
+| `auto-improve:needs-human`  | Cannot be auto-fixed; requires human judgment or access.       | discover |
+| `auto-improve:waiting-data` | Not enough signal yet; waiting for more runs before acting.    | **you**  |
+
+These are informational flags, not state labels. Remove `waiting-data` once
+enough runs exist in the window to make a decision. Remove `needs-human`
+when the issue transitions out of `raised` (discover handles this on
+PR open).
+
 Label invariants you must preserve on every edit:
-- At most one state label per issue.
+- At most one **state** label per issue.
 - `auto-improve` is always present.
 - Closed issues only carry `auto-improve:solved`.
+- Triage flags are removed when they no longer apply.
 
 ---
 
@@ -127,9 +140,10 @@ key matches this issue. Record:
 - `after_evidence` — up to 3 short excerpts from in-window runs.
 - `WORKFLOWS_PARSED` and `CONVERSATIONS_ANALYZED` from the subagent's
   `>>>` stdout lines. If `WORKFLOWS_PARSED == 0`, no runs exist in the
-  window yet — append a verify history entry with
-  `verdict=no-runs-in-window` and do not close. The next scheduled
-  verify run will try again once workflow runs accumulate.
+  window yet — add the `auto-improve:waiting-data` label, append a
+  verify history entry with `verdict=no-runs-in-window`, and do not
+  close. The next scheduled verify run will try again once workflow
+  runs accumulate.
 
 ---
 
@@ -145,6 +159,11 @@ key matches this issue. Record:
 | `merged`                  | yes               | `after_count > 0`     | **Regression.** Relabel back to `auto-improve:raised`, append a comment `Regression detected: <N> recurrences after fix merged. Evidence: …`, append verify history (`verdict=regression`). |
 | `solved` (closed, reopen) | yes               | yes                   | **Reopen.** `gh issue reopen <n>`, relabel `auto-improve:solved` → `auto-improve:raised`, append comment `Regression detected after previous verification. Evidence: …`, append verify history (`verdict=regression-reopened`). |
 | `solved` (closed)         | yes               | no                    | No-op. Do not reopen. Do not append a verify history entry (the issue is closed and stable). |
+
+For **every** row above where the verify workflow has enough data to reach
+a verdict (i.e. `WORKFLOWS_PARSED > 0`), **remove the
+`auto-improve:waiting-data` label** if it is present — the issue is no
+longer waiting for signal.
 
 There is no `verify_runs` threshold to tune: **one clean verify run is
 enough to close**. The per-issue scoped comparison against a frozen
