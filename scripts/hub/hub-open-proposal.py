@@ -69,7 +69,7 @@ import subprocess
 import sys
 from typing import Any
 
-REQUIRED_FIELDS = ("title", "problem", "proposed_change")
+REQUIRED_FIELDS = ("title", "problem", "proposed_change", "origin_commits")
 ALLOWED_SCOPES = {"workflow", "prompt", "script", "config"}
 
 
@@ -157,9 +157,9 @@ def validate(proposal: dict) -> str | None:
                 f"scope {scope!r} not in "
                 f"{sorted(ALLOWED_SCOPES)}"
             )
-    origin_commits = proposal.get("origin_commits") or []
-    if not isinstance(origin_commits, list):
-        return "origin_commits must be a list of commit SHAs"
+    origin_commits = proposal.get("origin_commits")
+    if not isinstance(origin_commits, list) or len(origin_commits) == 0:
+        return "origin_commits must be a non-empty list of commit SHAs"
     return None
 
 
@@ -192,11 +192,10 @@ def render_body(proposal: dict, origin_repo: str) -> str:
         lines.append("")
     lines.append("## Origin")
     lines.append(f"- Repo: `{origin_repo}`")
-    origin_commits = proposal.get("origin_commits") or []
-    if origin_commits:
-        lines.append("- Commits:")
-        for sha in origin_commits:
-            lines.append(f"  - `{sha}`")
+    origin_commits = proposal["origin_commits"]
+    lines.append("- Commits:")
+    for sha in origin_commits:
+        lines.append(f"  - `{sha}`")
     lines.append("")
     lines.append(
         "_This proposal is part of the cross-workspace improvement "
