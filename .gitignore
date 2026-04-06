@@ -7,6 +7,10 @@
 .env.*
 *.key
 *.pem
+*.secret
+
+# Python bytecode
+__pycache__/
 
 # Agent scratch space (per CLAUDE.md CI sandbox rules)
 .scratch/

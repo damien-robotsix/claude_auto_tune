@@ -4,6 +4,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# Fork mode: create a customized workspace copy
+if [ "${1:-}" = "--fork" ]; then
+    shift
+    exec "$SCRIPT_DIR/fork-workspace.sh" "$@"
+fi
+
 # Build if needed
 docker compose build
 
