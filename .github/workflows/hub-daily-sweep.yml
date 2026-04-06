@@ -70,14 +70,17 @@ jobs:
             echo "::warning::HUB_TOKEN secret is not provisioned. The daily sweep will not be able to create proposals in the hub repo. Add a fine-grained PAT with contents:read + issues:write on the hub repo as the HUB_TOKEN repository secret."
           fi
 
+      - name: Export hub env for composite action
+        if: steps.hub.outputs.enabled == 'true' && steps.hub.outputs.repo != ''
+        run: |
+          echo "HUB_REPO=${{ steps.hub.outputs.repo }}" >> "$GITHUB_ENV"
+          echo "HUB_TOKEN=${{ secrets.HUB_TOKEN }}" >> "$GITHUB_ENV"
+          echo "ORIGIN_REPO=${{ github.repository }}" >> "$GITHUB_ENV"
+          echo "LOOKBACK=${{ github.event.inputs.lookback || '24h' }}" >> "$GITHUB_ENV"
+
       - name: Run Hub Daily Sweep
         if: steps.hub.outputs.enabled == 'true' && steps.hub.outputs.repo != ''
-        uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
-        env:
-          HUB_REPO: ${{ steps.hub.outputs.repo }}
-          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
-          ORIGIN_REPO: ${{ github.repository }}
-          LOOKBACK: ${{ github.event.inputs.lookback || '24h' }}
+        uses: ./.github/actions/claude-code-retry
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 

@@ -78,7 +78,7 @@ jobs:
         run: python3 scripts/hub/fetch-local-transcripts.py
 
       - name: Run Auto-Improvement Discover
-        uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
+        uses: ./.github/actions/claude-code-retry
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 

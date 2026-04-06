@@ -59,13 +59,16 @@ jobs:
             echo "::warning::HUB_TOKEN secret is not provisioned. The sync workflow will not be able to comment on or label hub proposals."
           fi
 
+      - name: Export hub env for composite action
+        if: steps.hub.outputs.enabled == 'true' && steps.hub.outputs.repo != ''
+        run: |
+          echo "HUB_REPO=${{ steps.hub.outputs.repo }}" >> "$GITHUB_ENV"
+          echo "HUB_TOKEN=${{ secrets.HUB_TOKEN }}" >> "$GITHUB_ENV"
+          echo "THIS_REPO=${{ github.repository }}" >> "$GITHUB_ENV"
+
       - name: Run Hub Sync
         if: steps.hub.outputs.enabled == 'true' && steps.hub.outputs.repo != ''
-        uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
-        env:
-          HUB_REPO: ${{ steps.hub.outputs.repo }}
-          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
-          THIS_REPO: ${{ github.repository }}
+        uses: ./.github/actions/claude-code-retry
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
