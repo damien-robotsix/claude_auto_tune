@@ -21,15 +21,15 @@ Input file shape (YAML)::
     problem: |
         What pattern / failure mode this addresses.
     evidence: |
-        Links to PRs, runs, transcripts that back the proposal.
+        Links to commits, runs, transcripts that back the proposal.
     proposed_change: |
         File paths + a diff or prose description.
     applicability: |
         Preconditions (e.g. "requires docker harness",
         "only relevant if auto-improve runs on a schedule").
     origin_repo: damien-robotsix/claude_auto_tune
-    origin_prs:
-      - https://github.com/.../pull/42
+    origin_commits:
+      - abc1234
     scopes:
       - workflow
       - script
@@ -157,9 +157,9 @@ def validate(proposal: dict) -> str | None:
                 f"scope {scope!r} not in "
                 f"{sorted(ALLOWED_SCOPES)}"
             )
-    origin_prs = proposal.get("origin_prs") or []
-    if not isinstance(origin_prs, list):
-        return "origin_prs must be a list of URLs"
+    origin_commits = proposal.get("origin_commits") or []
+    if not isinstance(origin_commits, list):
+        return "origin_commits must be a list of commit SHAs"
     return None
 
 
@@ -192,11 +192,11 @@ def render_body(proposal: dict, origin_repo: str) -> str:
         lines.append("")
     lines.append("## Origin")
     lines.append(f"- Repo: `{origin_repo}`")
-    origin_prs = proposal.get("origin_prs") or []
-    if origin_prs:
-        lines.append("- PRs:")
-        for url in origin_prs:
-            lines.append(f"  - {url}")
+    origin_commits = proposal.get("origin_commits") or []
+    if origin_commits:
+        lines.append("- Commits:")
+        for sha in origin_commits:
+            lines.append(f"  - `{sha}`")
     lines.append("")
     lines.append(
         "_This proposal is part of the cross-workspace improvement "

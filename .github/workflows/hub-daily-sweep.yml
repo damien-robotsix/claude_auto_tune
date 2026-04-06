@@ -1,10 +1,10 @@
 name: Hub Daily Sweep
 
 # Phase 1 of the cross-workspace improvement sharing protocol (issue #32).
-# Runs daily. Uses Claude to decide which PRs merged in the last 24 hours
-# are generalizable and opens a proposal issue in the configured hub repo
-# for each. Deterministic `gh` wrappers under scripts/hub/*.py do the
-# actual data movement; Claude only provides judgment.
+# Runs daily. Uses Claude to decide which commits pushed in the last 24
+# hours are generalizable and opens a proposal issue in the configured hub
+# repo for each. Deterministic `gh` wrappers under scripts/hub/*.py do
+# the actual data movement; Claude only provides judgment.
 #
 # This workflow is publish-only. It never adopts proposals from other
 # forks — that lives in the sibling hub-sync workflow (later phase).
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       lookback:
-        description: 'Lookback window for merged PRs (e.g. 24h, 3d)'
+        description: 'Lookback window for recent commits (e.g. 24h, 3d)'
         required: false
         default: '24h'
 
@@ -88,6 +88,7 @@ jobs:
             Read the file `scripts/hub-daily-sweep-prompt.md` — it
             contains your full instructions. You are the daily sweep
             half of the cross-workspace improvement sharing protocol.
+            Review recent commits (not PRs) on the default branch.
             Your only write operation is creating proposal issues in
             the hub repo via `scripts/hub/hub-open-proposal.py`.
 

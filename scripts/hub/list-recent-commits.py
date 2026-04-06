@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
 """
-Deterministic lister for recently-merged PRs.
+Deterministic lister for recent commits on the default branch.
 
-Lists PRs merged into the repository's default branch within a lookback
-window and emits a single JSON array to stdout. One row per PR with:
+Lists commits pushed to the repository's default branch within a lookback
+window and emits a single JSON array to stdout. One row per commit with:
 
-- number, title, body, url, author, merged_at, merge_commit_sha
-- baseRefName, headRefName, labels
-- files: list of changed file paths (with additions/deletions)
-- diff: unified diff (truncated at DIFF_CHAR_CAP per PR)
+- sha, short_sha, message, author, date, url
+- files: list of changed file paths (with additions/deletions/status)
+- diff: unified diff (truncated at DIFF_CHAR_CAP per commit)
 - diff_truncated: bool
 
-This is a pure orchestration of ``gh``. No LLM calls, no network beyond
-what ``gh`` already does, no writes. It exists so that the
-``hub-daily-sweep`` workflow's Claude agent can get a deterministic PR
-bundle in one tool call instead of chaining 10+ ``gh`` invocations.
+This is a pure orchestration of ``gh`` / ``git``. No LLM calls, no network
+beyond what ``gh`` already does, no writes. It exists so that the
+``hub-daily-sweep`` workflow's Claude agent can get a deterministic commit
+bundle in one tool call instead of chaining many ``gh`` invocations.
 
 Usage::
 
-    python3 scripts/hub/list-merged-prs.py
-    python3 scripts/hub/list-merged-prs.py --since 48h
-    python3 scripts/hub/list-merged-prs.py --repo owner/name --since 24h
-    python3 scripts/hub/list-merged-prs.py --since 24h -o /tmp/merged.json
+    python3 scripts/hub/list-recent-commits.py
+    python3 scripts/hub/list-recent-commits.py --since 48h
+    python3 scripts/hub/list-recent-commits.py --repo owner/name --since 24h
+    python3 scripts/hub/list-recent-commits.py --since 24h -o /tmp/commits.json
 
 Exit codes:
-    0  success (even if zero PRs matched)
+    0  success (even if zero commits matched)
     2  usage error
     3  ``gh`` CLI not installed or not authenticated
 """
@@ -41,13 +40,13 @@ import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-# Per-PR diff cap. Bigger diffs get truncated and flagged so the caller
+# Per-commit diff cap. Bigger diffs get truncated and flagged so the caller
 # can fetch the specific files it needs via other tools.
 DIFF_CHAR_CAP = 80_000
 
-# Max PRs we'll bundle in one call. The sweep workflow should never be
-# asked to reason about hundreds of merges at once.
-PR_LIMIT = 50
+# Max commits we'll bundle in one call. The sweep workflow should never be
+# asked to reason about hundreds of commits at once.
+COMMIT_LIMIT = 50
 
 
 def _run_gh(args: list[str]) -> tuple[int, str, str]:
@@ -112,101 +111,85 @@ def resolve_default_branch(repo: str) -> tuple[str | None, str | None]:
     return ref.get("name"), None
 
 
-def list_merged_prs(
-    repo: str, base: str, since: datetime
+def list_recent_commits(
+    repo: str, branch: str, since: datetime
 ) -> tuple[list[dict], str | None]:
-    """Fetch merged PRs into ``base`` and filter by mergedAt >= since."""
-    fields = ",".join(
-        [
-            "number",
-            "title",
-            "body",
-            "url",
-            "author",
-            "mergedAt",
-            "mergeCommit",
-            "baseRefName",
-            "headRefName",
-            "labels",
-            "files",
-            "additions",
-            "deletions",
-        ]
-    )
+    """Fetch commits on ``branch`` since ``since`` via the GitHub API."""
+    since_iso = since.strftime("%Y-%m-%dT%H:%M:%SZ")
     data, err = _gh_json(
         [
-            "pr",
-            "list",
-            "--repo",
-            repo,
-            "--state",
-            "merged",
-            "--base",
-            base,
-            "--limit",
-            str(PR_LIMIT),
-            "--json",
-            fields,
+            "api",
+            f"repos/{repo}/commits",
+            "--paginate",
+            "-f", f"sha={branch}",
+            "-f", f"since={since_iso}",
+            "-f", f"per_page={COMMIT_LIMIT}",
         ]
     )
     if err:
         return [], err
-    out: list[dict] = []
-    for pr in data or []:
-        merged_at_str = pr.get("mergedAt")
-        if not merged_at_str:
-            continue
-        try:
-            merged_at = datetime.fromisoformat(
-                merged_at_str.replace("Z", "+00:00")
-            )
-        except ValueError:
-            continue
-        if merged_at < since:
-            continue
-        out.append(pr)
-    return out, None
+    if not isinstance(data, list):
+        return [], "unexpected response format from commits API"
+    return data[:COMMIT_LIMIT], None
 
 
-def fetch_pr_diff(
-    repo: str, number: int
-) -> tuple[str, bool, str | None]:
+def fetch_commit_diff(repo: str, sha: str) -> tuple[str, bool, str | None]:
+    """Fetch the diff for a single commit via gh api."""
     rc, stdout, err = _run_gh(
-        ["pr", "diff", str(number), "--repo", repo]
+        [
+            "api",
+            f"repos/{repo}/commits/{sha}",
+            "-H", "Accept: application/vnd.github.v3.diff",
+        ]
     )
     if rc != 0:
-        return "", False, (err or f"gh pr diff exited with {rc}").strip()
+        return "", False, (err or f"gh api exited with {rc}").strip()
     if len(stdout) > DIFF_CHAR_CAP:
         return stdout[:DIFF_CHAR_CAP], True, None
     return stdout, False, None
 
 
-def build_row(repo: str, pr: dict) -> dict:
-    number = pr.get("number")
-    files = [
+def fetch_commit_files(repo: str, sha: str) -> tuple[list[dict], str | None]:
+    """Fetch the file list for a single commit via gh api."""
+    data, err = _gh_json(
+        [
+            "api",
+            f"repos/{repo}/commits/{sha}",
+            "--jq", ".files",
+        ]
+    )
+    if err:
+        return [], err
+    if not isinstance(data, list):
+        return [], None
+    return [
         {
-            "path": f.get("path"),
+            "path": f.get("filename"),
+            "status": f.get("status"),
             "additions": f.get("additions"),
             "deletions": f.get("deletions"),
         }
-        for f in (pr.get("files") or [])
-    ]
-    labels = [l.get("name") for l in (pr.get("labels") or [])]
-    diff, truncated, diff_err = fetch_pr_diff(repo, int(number))
+        for f in data
+    ], None
+
+
+def build_row(repo: str, commit: dict) -> dict:
+    sha = commit.get("sha", "")
+    commit_data = commit.get("commit", {})
+    author_data = commit_data.get("author", {})
+    gh_author = commit.get("author") or {}
+
+    files, _files_err = fetch_commit_files(repo, sha)
+    diff, truncated, diff_err = fetch_commit_diff(repo, sha)
+
     row: dict[str, Any] = {
         "repo": repo,
-        "number": number,
-        "title": pr.get("title") or "",
-        "body": pr.get("body") or "",
-        "url": pr.get("url"),
-        "author": (pr.get("author") or {}).get("login"),
-        "merged_at": pr.get("mergedAt"),
-        "merge_commit_sha": (pr.get("mergeCommit") or {}).get("oid"),
-        "base_ref": pr.get("baseRefName"),
-        "head_ref": pr.get("headRefName"),
-        "labels": labels,
-        "additions": pr.get("additions"),
-        "deletions": pr.get("deletions"),
+        "sha": sha,
+        "short_sha": sha[:7],
+        "message": commit_data.get("message", ""),
+        "author": gh_author.get("login") or author_data.get("name", ""),
+        "date": author_data.get("date", ""),
+        "url": commit.get("html_url", ""),
         "files": files,
         "diff": diff,
         "diff_truncated": truncated,
@@ -219,7 +202,7 @@ def build_row(repo: str, pr: dict) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "List PRs merged into the default branch within a lookback "
+            "List commits on the default branch within a lookback "
             "window as a JSON array (used by the hub-daily-sweep "
             "workflow)."
         )
@@ -236,9 +219,9 @@ def main() -> int:
         ),
     )
     parser.add_argument(
-        "--base",
+        "--branch",
         help=(
-            "base branch to filter on (default: the repo's default "
+            "branch to list commits from (default: the repo's default "
             "branch)"
         ),
     )
@@ -267,10 +250,10 @@ def main() -> int:
         )
         return 2
 
-    base = args.base
-    if not base:
-        base, err = resolve_default_branch(repo)
-        if not base:
+    branch = args.branch
+    if not branch:
+        branch, err = resolve_default_branch(repo)
+        if not branch:
             print(
                 f"error: could not resolve default branch: {err}",
                 file=sys.stderr,
@@ -278,12 +261,12 @@ def main() -> int:
             return 2
 
     since_dt = datetime.now(timezone.utc) - window
-    prs, err = list_merged_prs(repo, base, since_dt)
+    commits, err = list_recent_commits(repo, branch, since_dt)
     if err:
-        print(f"error: gh pr list failed: {err}", file=sys.stderr)
+        print(f"error: commits API failed: {err}", file=sys.stderr)
         return 3
 
-    rows = [build_row(repo, pr) for pr in prs]
+    rows = [build_row(repo, c) for c in commits]
     text = json.dumps(rows, indent=2)
 
     if args.output:
