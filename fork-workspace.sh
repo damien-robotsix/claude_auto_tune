@@ -167,6 +167,7 @@ COPY_ITEMS=(
     .gitignore
     CLAUDE.md
     README.md
+    fork-workspace.sh
     auto_tune_config.yml
     scripts
     docs
