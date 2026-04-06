@@ -109,6 +109,7 @@ jobs:
         uses: ./.github/actions/claude-code-retry
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          allowed_bots: 'claude'
 
           additional_permissions: |
             actions: read
