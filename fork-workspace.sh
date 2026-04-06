@@ -328,8 +328,10 @@ fi
 if [ "$ENABLE_HUB" = false ]; then
     rm -f "$TARGET_DIR/.github/workflows/hub-daily-sweep.yml"
     rm -f "$TARGET_DIR/.github/workflows/hub-sync.yml"
+    rm -f "$TARGET_DIR/.github/workflows/hub-adopt.yml"
     rm -f "$TARGET_DIR/scripts/hub-daily-sweep-prompt.md"
     rm -f "$TARGET_DIR/scripts/hub-sync-prompt.md"
+    rm -f "$TARGET_DIR/scripts/hub-adopt-prompt.md"
 fi
 
 # ── Initialize git repo ─────────────────────────────────────────────────
