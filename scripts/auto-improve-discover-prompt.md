@@ -104,6 +104,16 @@ category: <reliability|cost_reduction|new_workflow|deterministic_script|subagent
 - Evidence excerpts:
   - <≤160-char bullet pulled straight from the extractor output>
 
+## Remediation
+<concrete steps or diff to fix the problem>
+
+If the issue can be auto-fixed, this section describes the planned change.
+If it requires workflow edits or external access, write: `@claude` followed
+by concrete implementation instructions (exact diff or steps). **Never**
+write vague language like "a maintainer should" or "next steps for a human"
+— always provide actionable instructions addressed to `@claude` so the
+`claude.yml` workflow can attempt the fix automatically.
+
 ## Related
 - PR: #<num> (added once a fix PR is opened)
 ```
@@ -363,3 +373,8 @@ can read the full state by filtering issues by the `auto-improve` label.
 - PR bodies, commit messages, and PR titles must never contain the strings
   `Fixes #`, `Closes #`, or `Resolves #` followed by an issue number. Use
   `Refs #<num>` instead.
+- **Never write vague remediation language** like "a maintainer should",
+  "next steps for a human", or "suggested next steps". Every `## Remediation`
+  section must contain concrete, actionable instructions. When a fix cannot
+  be shipped by this workflow, address remediation to `@claude` with an
+  exact diff or step-by-step plan.
