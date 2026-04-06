@@ -8,6 +8,7 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 
 ## Working on tasks
 
+- Always `Read` a file before calling `Write` or `Edit` on it — the tools reject calls on files that have not been read in the current session, and skipping this wastes a round-trip
 - Read the full task description and all available context before starting
 - Follow existing code patterns and conventions
 - Write clear, focused commit messages explaining the "why"
