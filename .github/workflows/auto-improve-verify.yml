@@ -94,6 +94,17 @@ jobs:
           id=$(yq ".model_aliases.\"$alias\" // \"$alias\"" auto_tune_config.yml)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
+      - name: Fetch local Claude Code transcripts from hub (best effort)
+        # Same pull as auto-improve-discover.yml: populates
+        # .scratch/hub-transcripts/ from the shared hub repo so the
+        # workflow-insights-extractor can include local-run signals in the
+        # per-issue "after" snapshot. Hard no-op when hub config is off or
+        # HUB_READ_TOKEN is missing; scoped to this step so the token
+        # never leaks into the Claude step.
+        env:
+          HUB_READ_TOKEN: ${{ secrets.HUB_READ_TOKEN }}
+        run: python3 scripts/hub/fetch-local-transcripts.py
+
       - name: Run Auto-Improvement Verify
         uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
         with:

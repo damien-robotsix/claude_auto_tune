@@ -127,9 +127,34 @@ Your caller passes:
    `CONVERSATION_LIMIT` successful parses. Emit `>>> Conversations analyzed:
    <N> / <CONVERSATION_LIMIT>`.
 
-4. **Cluster into candidates.** Read every `/tmp/wf-*.json` and
-   `/tmp/tx-*.json`, then group related signals into distinct **problem
-   candidates**. Use the following categories (pick the best fit):
+   **Also check `./.scratch/hub-transcripts/`.** A workflow step that
+   runs before you (`Fetch local Claude Code transcripts from hub`) may
+   have populated this directory with session JSONL files captured from
+   **local** Docker runs and published to the shared hub repo by
+   `scripts/hub/push-local-transcripts.py`. The directory layout is
+   `./.scratch/hub-transcripts/<YYYY-MM-DD>/<session-id>.jsonl`. If the
+   directory exists and is non-empty, run `parse-claude-transcript.py`
+   against the whole directory as a single unit (it recurses over date
+   subdirectories) and save the result to `/tmp/tx-hub-local.json`. The
+   hub transcripts are counted as **one** parse against
+   `CONVERSATION_LIMIT`, not one per file, because they are aggregated
+   into a single JSON summary by the parser. If `WINDOW_START` is set,
+   skip date subdirectories whose name is earlier than the
+   `WINDOW_START` date (the hub uses `YYYY-MM-DD` folder names, which
+   sort lexicographically as dates). If the directory is missing or
+   empty, skip silently — a fork without `HUB_READ_TOKEN` provisioned,
+   or one that has not enabled `hub.local_transcripts`, will always see
+   it empty and that is expected. Emit `>>> Hub-local transcripts
+   analyzed: <N>` where N is the number of `*.jsonl` files aggregated
+   (0 if the directory was empty or missing).
+
+4. **Cluster into candidates.** Read every `/tmp/wf-*.json`,
+   `/tmp/tx-*.json`, and `/tmp/tx-hub-local.json` (if present), then
+   group related signals into distinct **problem candidates**. Evidence
+   drawn from the hub-local summary must set `source` to
+   `transcript_local` so downstream consumers can tell local-run signals
+   apart from CI-run signals. Use the following categories (pick the
+   best fit):
 
    - `reliability` — errors, retries, timeouts, HTTP failures
    - `cost_reduction` — expensive-looking multi-step LLM patterns

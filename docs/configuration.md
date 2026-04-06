@@ -69,7 +69,16 @@ hub:
 
 - `hub.enabled` — master switch for every lane. When false, all hub scripts and workflows exit without touching anything.
 - `hub.repo` — slug of the shared hub repo. One repo hosts multiple disjoint data lanes (each lane owns its own directory tree or label set inside the hub).
-- `hub.local_transcripts.enabled` — independent switch for the local-transcript publishing lane. When true, [`scripts/hub/push-local-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/push-local-transcripts.py) copies new Claude Code session transcripts from `.claude-home/.claude/projects/` into `transcripts/<workspace-slug>/<YYYY-MM-DD>/` in the hub. Defaults to `false` so the script is a no-op until you opt in.
+- `hub.local_transcripts.enabled` — independent switch for the local-transcript lane. When true, the **push side** ([`scripts/hub/push-local-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/push-local-transcripts.py)) copies new Claude Code session transcripts from `.claude-home/.claude/projects/` into `transcripts/<workspace-slug>/<YYYY-MM-DD>/` in the hub, and the **pull side** ([`scripts/hub/fetch-local-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/fetch-local-transcripts.py)) fetches them into `.scratch/hub-transcripts/` during CI so the `workflow-insights-extractor` can fold local-run signals into clustering. Defaults to `false` so both sides are a no-op until you opt in.
+
+### `HUB_READ_TOKEN` Actions secret
+
+The CI pull side requires a `HUB_READ_TOKEN` repository secret — a fine-grained PAT with **`contents: read`** on the hub repo. Each fork owner provisions this themselves:
+
+1. Create a fine-grained PAT at **Settings → Developer settings → Personal access tokens → Fine-grained tokens**, scoped to the hub repo with `contents: read` permission only.
+2. Add it as a repository secret named `HUB_READ_TOKEN` under **Settings → Secrets and variables → Actions** on your workspace fork.
+
+When the secret is missing, the fetch step exits silently and the auto-improve loop works exactly as before — no local-run signals are included, but nothing breaks. The token is only exposed to the fetch step's subprocess environment; it is **never** passed to the Claude step.
 
 The hub-daily-sweep cron is hardcoded in `.github/workflows/hub-daily-sweep.yml` (same reason as the auto-improve crons — `on.schedule` cannot be templated from config). Proposal lifetime enforcement lives in the hub repo itself.
 
