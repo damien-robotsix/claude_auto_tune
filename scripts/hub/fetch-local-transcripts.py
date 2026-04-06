@@ -316,8 +316,19 @@ def copy_transcripts(sources: list[Path], base_src: Path, dest: Path) -> int:
 # ----- Main ----------------------------------------------------------
 
 
-def _warn(msg: str) -> None:
+def _warn(msg: str, *, ci_warning: bool = False) -> None:
+    """Print a warning to stderr.
+
+    When ``ci_warning`` is True **and** we are running inside GitHub
+    Actions (``GITHUB_ACTIONS=true``), also emit a ``::warning::``
+    workflow command so the message surfaces in the workflow summary UI
+    instead of being buried in the log.
+    """
     print(f"fetch-local-transcripts: {msg}", file=sys.stderr)
+    if ci_warning and os.environ.get("GITHUB_ACTIONS") == "true":
+        # Workflow command — GitHub renders this as a yellow annotation
+        # on the step and in the job summary.
+        print(f"::warning::fetch-local-transcripts: {msg}")
 
 
 def main() -> int:
@@ -422,15 +433,15 @@ def main() -> int:
         return 0
 
     if not shutil.which("gh"):
-        _warn("gh CLI not found on PATH; skipping.")
+        _warn("gh CLI not found on PATH; skipping.", ci_warning=True)
         return 0
     if not shutil.which("git"):
-        _warn("git not found on PATH; skipping.")
+        _warn("git not found on PATH; skipping.", ci_warning=True)
         return 0
 
     repo_dir, err = ensure_hub_clone(hub_repo, cache_dir, token)
     if err:
-        _warn(err)
+        _warn(err, ci_warning=True)
         return 0
 
     base_src = repo_dir / "transcripts" / slug
