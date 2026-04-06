@@ -42,3 +42,16 @@ follow these rules:
   `.claude/agents/` are regular repo files — you may read, edit, and
   commit changes to them like any other source file. Do not self-restrict
   writes to this directory.
+
+## Common CI sandbox mistakes (avoid these)
+
+These patterns cause the majority of Bash/Edit errors in CI runs:
+
+| Mistake | Example | Fix |
+|---------|---------|-----|
+| Pipe through unapproved command | `gh pr view 5 \| jq .title` | Split into two calls or use `python3 -c` |
+| Redirect stderr | `git status 2>&1` | Omit `2>&1` — stderr is captured automatically |
+| Write to `/tmp` | `echo x > /tmp/foo` | Use `./.scratch/foo` or `Write` tool |
+| Edit unread file | `Edit(file="new.md", ...)` | `Read("new.md")` first |
+| `cat` / `head` / `grep` via Bash | `cat README.md` | Use the `Read` / `Grep` dedicated tools |
+| Chain commands with `&&` | `mkdir -p dir && echo done` | Use two separate Bash calls or a single `python3 -c` |
