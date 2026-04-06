@@ -91,3 +91,9 @@ jobs:
           path: ~/.claude/projects/**/*.jsonl
           if-no-files-found: ignore
           retention-days: 30
+
+      - name: Push CI transcripts to hub (best effort)
+        if: always()
+        env:
+          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
+        run: python3 scripts/hub/push-ci-transcripts.py

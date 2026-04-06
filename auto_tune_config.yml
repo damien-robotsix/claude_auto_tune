@@ -51,3 +51,8 @@ hub:
     # (scripts/hub/push-local-transcripts.py) exits 0 without touching
     # anything when this is false.
     enabled: true
+  # CI transcript publishing lane. Pushes Claude Code session transcripts
+  # from CI workflow runs to the hub repo alongside local transcripts.
+  # This gives the hub a global view of all transcripts across workspaces.
+  ci_transcripts:
+    enabled: true
