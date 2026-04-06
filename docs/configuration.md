@@ -71,14 +71,19 @@ hub:
 - `hub.repo` — slug of the shared hub repo. One repo hosts multiple disjoint data lanes (each lane owns its own directory tree or label set inside the hub).
 - `hub.local_transcripts.enabled` — independent switch for the local-transcript lane. When true, the **push side** ([`scripts/hub/push-local-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/push-local-transcripts.py)) copies new Claude Code session transcripts from `.claude-home/.claude/projects/` into `transcripts/<workspace-slug>/<YYYY-MM-DD>/` in the hub, and the **pull side** ([`scripts/hub/fetch-local-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/fetch-local-transcripts.py)) fetches them into `.scratch/hub-transcripts/` during CI so the `workflow-insights-extractor` can fold local-run signals into clustering. Defaults to `false` so both sides are a no-op until you opt in.
 
-### `HUB_READ_TOKEN` Actions secret
+### `HUB_TOKEN` Actions secret
 
-The CI pull side requires a `HUB_READ_TOKEN` repository secret — a fine-grained PAT with **`contents: read`** on the hub repo. Each fork owner provisions this themselves:
+All hub-interacting CI workflows require a `HUB_TOKEN` repository secret — a fine-grained PAT scoped to the hub repo with **`contents: read`** + **`issues: write`** permissions. The token is used by:
 
-1. Create a fine-grained PAT at **Settings → Developer settings → Personal access tokens → Fine-grained tokens**, scoped to the hub repo with `contents: read` permission only.
-2. Add it as a repository secret named `HUB_READ_TOKEN` under **Settings → Secrets and variables → Actions** on your workspace fork.
+- **`auto-improve-discover.yml` / `auto-improve-verify.yml`** — to fetch local transcripts from the hub (`contents: read`).
+- **`hub-daily-sweep.yml`** — to create proposal issues and manage labels in the hub (`issues: write`).
 
-When the secret is missing, the fetch step exits silently and the auto-improve loop works exactly as before — no local-run signals are included, but nothing breaks. The token is only exposed to the fetch step's subprocess environment; it is **never** passed to the Claude step.
+Each fork owner provisions this themselves:
+
+1. Create a fine-grained PAT at **Settings → Developer settings → Personal access tokens → Fine-grained tokens**, scoped to the hub repo with `contents: read` and `issues: write` permissions.
+2. Add it as a repository secret named `HUB_TOKEN` under **Settings → Secrets and variables → Actions** on your workspace fork.
+
+When the secret is missing, workflows emit a `::warning::` annotation in the job summary and continue without hub interaction — no local-run signals are included and no proposals are created, but nothing breaks. The token is scoped to specific workflow steps and is **never** passed to the Claude Code step.
 
 The hub-daily-sweep cron is hardcoded in `.github/workflows/hub-daily-sweep.yml` (same reason as the auto-improve crons — `on.schedule` cannot be templated from config). Proposal lifetime enforcement lives in the hub repo itself.
 

@@ -69,12 +69,12 @@ jobs:
         # consumes CI transcripts. The script is a hard no-op when any of
         # the following is true, so the step is always safe:
         #   - hub.enabled / hub.local_transcripts.enabled is false
-        #   - HUB_READ_TOKEN secret is not provisioned on this fork
+        #   - HUB_TOKEN secret is not provisioned on this fork
         #   - the hub repo cannot be reached
-        # HUB_READ_TOKEN is scoped to this step only; it is not exposed to
+        # HUB_TOKEN is scoped to this step only; it is not exposed to
         # the Claude step that runs after this one.
         env:
-          HUB_READ_TOKEN: ${{ secrets.HUB_READ_TOKEN }}
+          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
         run: python3 scripts/hub/fetch-local-transcripts.py
 
       - name: Run Auto-Improvement Discover

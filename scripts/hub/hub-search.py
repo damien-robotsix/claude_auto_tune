@@ -40,12 +40,33 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
 from typing import Any
 
 MATCH_LIMIT = 25
+
+
+def _hub_env() -> dict[str, str] | None:
+    """Return a subprocess env dict that scopes ``gh`` to ``HUB_TOKEN``
+    when set. Returns ``None`` (inherit parent env) otherwise."""
+    token = os.environ.get("HUB_TOKEN", "").strip()
+    if not token:
+        return None
+    env = os.environ.copy()
+    env["GH_TOKEN"] = token
+    env.pop("GITHUB_TOKEN", None)
+    return env
+
+
+def _ci_warning(msg: str) -> None:
+    """Emit a ``::warning::`` annotation when running inside GitHub
+    Actions."""
+    print(f"hub-search: {msg}", file=sys.stderr)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::warning::hub-search: {msg}")
 
 
 def _run_gh(args: list[str]) -> tuple[int, str, str]:
@@ -55,6 +76,7 @@ def _run_gh(args: list[str]) -> tuple[int, str, str]:
             capture_output=True,
             text=True,
             check=False,
+            env=_hub_env(),
         )
     except FileNotFoundError:
         return 127, "", "gh CLI not found on PATH"
@@ -175,12 +197,12 @@ def main() -> int:
     args = parser.parse_args()
 
     if not shutil.which("gh"):
-        print("error: gh CLI not found on PATH", file=sys.stderr)
+        _ci_warning("gh CLI not found on PATH")
         return 3
 
     rows, err = search_hub(args.hub_repo, args.query)
     if err:
-        print(f"error: gh issue list failed: {err}", file=sys.stderr)
+        _ci_warning(f"gh issue list failed: {err}")
         return 3
 
     if args.origin:

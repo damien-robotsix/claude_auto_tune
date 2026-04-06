@@ -73,6 +73,29 @@ REQUIRED_FIELDS = ("title", "problem", "proposed_change")
 ALLOWED_SCOPES = {"workflow", "prompt", "script", "config"}
 
 
+def _hub_env() -> dict[str, str] | None:
+    """Return a subprocess env dict that scopes ``gh`` to ``HUB_TOKEN``
+    when it is set, so ``gh`` targets the hub repo rather than the
+    runner's default ``GITHUB_TOKEN``. Returns ``None`` (inherit parent
+    env) when ``HUB_TOKEN`` is not set — ``gh`` will use whatever
+    ambient token is available."""
+    token = os.environ.get("HUB_TOKEN", "").strip()
+    if not token:
+        return None
+    env = os.environ.copy()
+    env["GH_TOKEN"] = token
+    env.pop("GITHUB_TOKEN", None)
+    return env
+
+
+def _ci_warning(msg: str) -> None:
+    """Emit a ``::warning::`` annotation when running inside GitHub
+    Actions, so the message is visible in the workflow summary."""
+    print(f"hub-open-proposal: {msg}", file=sys.stderr)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::warning::hub-open-proposal: {msg}")
+
+
 def _run_gh(args: list[str], stdin: str | None = None) -> tuple[int, str, str]:
     try:
         proc = subprocess.run(
@@ -81,6 +104,7 @@ def _run_gh(args: list[str], stdin: str | None = None) -> tuple[int, str, str]:
             capture_output=True,
             text=True,
             check=False,
+            env=_hub_env(),
         )
     except FileNotFoundError:
         return 127, "", "gh CLI not found on PATH"
@@ -284,7 +308,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if not shutil.which("gh") and not args.dry_run:
-        print("error: gh CLI not found on PATH", file=sys.stderr)
+        _ci_warning("gh CLI not found on PATH")
         return 3
 
     proposal, err = load_proposal(args.file)
@@ -326,7 +350,7 @@ def main() -> int:
     labels = ensure_canonical_labels(args.hub_repo, origin_repo, scopes)
     url, err = open_proposal(args.hub_repo, title, body, labels)
     if err:
-        print(f"error: gh issue create failed: {err}", file=sys.stderr)
+        _ci_warning(f"gh issue create failed: {err}")
         return 3
 
     result = {

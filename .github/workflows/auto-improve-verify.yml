@@ -99,10 +99,10 @@ jobs:
         # .scratch/hub-transcripts/ from the shared hub repo so the
         # workflow-insights-extractor can include local-run signals in the
         # per-issue "after" snapshot. Hard no-op when hub config is off or
-        # HUB_READ_TOKEN is missing; scoped to this step so the token
+        # HUB_TOKEN is missing; scoped to this step so the token
         # never leaks into the Claude step.
         env:
-          HUB_READ_TOKEN: ${{ secrets.HUB_READ_TOKEN }}
+          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
         run: python3 scripts/hub/fetch-local-transcripts.py
 
       - name: Run Auto-Improvement Verify

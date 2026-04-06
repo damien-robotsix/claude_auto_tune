@@ -44,7 +44,7 @@ Design invariants
 - **Silent no-op when not opted in.** If ``hub.enabled`` or
   ``hub.local_transcripts.enabled`` is false/unset in
   ``auto_tune_config.yml``, the script exits 0 without touching anything.
-  If ``HUB_READ_TOKEN`` is not set in the environment, the script exits 0
+  If ``HUB_TOKEN`` is not set in the environment, the script exits 0
   with a diagnostic — CI steps can call this unconditionally because a
   fork without the secret provisioned behaves exactly like one with the
   lane disabled.
@@ -61,7 +61,7 @@ Design invariants
 
 Authentication
 --------------
-GitHub auth is read from ``HUB_READ_TOKEN`` (a fork-provisioned fine-
+GitHub auth is read from ``HUB_TOKEN`` (a fork-provisioned fine-
 grained PAT with ``contents: read`` on the hub repo). The token is
 exported as ``GH_TOKEN`` only for the subprocess calls made by this
 script, so it does not leak into the Claude step that runs after this
@@ -73,7 +73,7 @@ Usage
 -----
 ::
 
-    HUB_READ_TOKEN=ghp_xxx python3 scripts/hub/fetch-local-transcripts.py
+    HUB_TOKEN=ghp_xxx python3 scripts/hub/fetch-local-transcripts.py
     python3 scripts/hub/fetch-local-transcripts.py --dry-run
     python3 scripts/hub/fetch-local-transcripts.py \\
         --dest .scratch/hub-transcripts \\
@@ -412,10 +412,10 @@ def main() -> int:
         )
         return 0
 
-    token = os.environ.get("HUB_READ_TOKEN", "").strip()
+    token = os.environ.get("HUB_TOKEN", "").strip()
     if not token:
         _warn(
-            "HUB_READ_TOKEN env var is not set; skipping hub transcript "
+            "HUB_TOKEN env var is not set; skipping hub transcript "
             "fetch (this is expected on forks that have not provisioned "
             "the secret)."
         )
