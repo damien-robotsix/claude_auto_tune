@@ -84,6 +84,11 @@ follow these rules:
   `no pull requests found for branch "owner/repo/pull/7"`. Pass the PR
   number alone (`gh pr view 7`) and use `--repo owner/repo` if you need
   a non-default target.
+- **Never issue parallel `gh` Bash calls.** When multiple `gh pr *` or
+  `gh api` calls are dispatched in the same assistant turn, the first
+  failure cancels all siblings — every queued call is wasted. Use
+  `scripts/collect-pr-review-context.py` for PR context, or issue `gh`
+  calls one at a time, sequentially.
 - **Workflow files are effectively read-only.** The GitHub App token this
   agent runs under does not carry the `workflows` permission, so pushes
   that touch `.github/workflows/**` are rejected at the remote. If a fix
