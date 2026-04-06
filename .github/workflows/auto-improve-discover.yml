@@ -61,6 +61,22 @@ jobs:
           fi
           echo "value=$value" >> "$GITHUB_OUTPUT"
 
+      - name: Fetch local Claude Code transcripts from hub (best effort)
+        # Pull half of the local-transcript lane. Populates
+        # .scratch/hub-transcripts/ with session JSONL files published by
+        # `run.sh` from local Docker runs, so the workflow-insights-extractor
+        # subagent can fold them into the same clustering pass that already
+        # consumes CI transcripts. The script is a hard no-op when any of
+        # the following is true, so the step is always safe:
+        #   - hub.enabled / hub.local_transcripts.enabled is false
+        #   - HUB_TOKEN secret is not provisioned on this fork
+        #   - the hub repo cannot be reached
+        # HUB_TOKEN is scoped to this step only; it is not exposed to
+        # the Claude step that runs after this one.
+        env:
+          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
+        run: python3 scripts/hub/fetch-local-transcripts.py
+
       - name: Run Auto-Improvement Discover
         uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
         with:

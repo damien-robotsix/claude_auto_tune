@@ -61,11 +61,21 @@ jobs:
         if: steps.hub.outputs.enabled == 'true' && steps.hub.outputs.repo != ''
         run: mkdir -p .scratch
 
+      - name: Check HUB_TOKEN availability
+        if: steps.hub.outputs.enabled == 'true' && steps.hub.outputs.repo != ''
+        env:
+          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
+        run: |
+          if [ -z "$HUB_TOKEN" ]; then
+            echo "::warning::HUB_TOKEN secret is not provisioned. The daily sweep will not be able to create proposals in the hub repo. Add a fine-grained PAT with contents:read + issues:write on the hub repo as the HUB_TOKEN repository secret."
+          fi
+
       - name: Run Hub Daily Sweep
         if: steps.hub.outputs.enabled == 'true' && steps.hub.outputs.repo != ''
         uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
         env:
           HUB_REPO: ${{ steps.hub.outputs.repo }}
+          HUB_TOKEN: ${{ secrets.HUB_TOKEN }}
           ORIGIN_REPO: ${{ github.repository }}
           LOOKBACK: ${{ github.event.inputs.lookback || '24h' }}
         with:
