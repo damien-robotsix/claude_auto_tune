@@ -182,6 +182,30 @@ def extract_tool_calls(lines: list[str]) -> dict:
     }
 
 
+def _is_subagent_path(path: pathlib.Path) -> bool:
+    """Return True if *path* lives under a ``subagents/`` directory."""
+    return "subagents" in path.parts
+
+
+def _parent_session_id(path: pathlib.Path) -> str | None:
+    """Extract the parent session UUID from a subagent file path.
+
+    Claude Code stores subagent transcripts at::
+
+        <session-uuid>/subagents/agent-<id>.jsonl
+
+    Returns the session UUID or ``None`` if the path doesn't match.
+    """
+    parts = path.parts
+    try:
+        idx = parts.index("subagents")
+    except ValueError:
+        return None
+    if idx > 0:
+        return parts[idx - 1]
+    return None
+
+
 def collect_jsonl_lines(source: str) -> list[str]:
     """Collect all JSONL lines from a file, directory, or stdin sentinel."""
     p = pathlib.Path(source)
@@ -195,13 +219,67 @@ def collect_jsonl_lines(source: str) -> list[str]:
     return []
 
 
+def collect_jsonl_lines_split(source: str) -> tuple[list[str], list[str]]:
+    """Collect JSONL lines, separating parent from subagent transcripts.
+
+    Returns ``(parent_lines, subagent_lines)``. For stdin or single-file
+    inputs the split is best-effort (everything goes to parent).
+    """
+    p = pathlib.Path(source)
+    if p.is_dir():
+        parent: list[str] = []
+        sub: list[str] = []
+        for jf in sorted(p.rglob("*.jsonl")):
+            bucket = sub if _is_subagent_path(jf) else parent
+            bucket.extend(jf.read_text(errors="replace").splitlines())
+        return parent, sub
+    if p.is_file():
+        lines = p.read_text(errors="replace").splitlines()
+        if _is_subagent_path(p):
+            return [], lines
+        return lines, []
+    return [], []
+
+
+def _collect_subagent_details(source: str) -> list[dict]:
+    """Return per-subagent breakdowns for directory sources."""
+    p = pathlib.Path(source)
+    if not p.is_dir():
+        return []
+    details: list[dict] = []
+    for jf in sorted(p.rglob("*.jsonl")):
+        if not _is_subagent_path(jf):
+            continue
+        lines = jf.read_text(errors="replace").splitlines()
+        summary = extract_tool_calls(lines)
+        details.append({
+            "subagent_id": jf.stem,
+            "parent_session_id": _parent_session_id(jf),
+            "tool_call_count": summary["tool_call_count"],
+            "tool_counts": summary["tool_counts"],
+            "error_tools": summary["error_tools"],
+        })
+    return details
+
+
 def main() -> None:
     if len(sys.argv) > 1:
-        all_lines: list[str] = []
+        parent_lines: list[str] = []
+        subagent_lines: list[str] = []
         for arg in sys.argv[1:]:
-            all_lines.extend(collect_jsonl_lines(arg))
+            p, s = collect_jsonl_lines_split(arg)
+            parent_lines.extend(p)
+            subagent_lines.extend(s)
+        # Also gather per-subagent detail when inputs are directories
+        subagent_details: list[dict] = []
+        for arg in sys.argv[1:]:
+            subagent_details.extend(_collect_subagent_details(arg))
+        all_lines = parent_lines + subagent_lines
     else:
         all_lines = sys.stdin.read().splitlines()
+        parent_lines = all_lines
+        subagent_lines = []
+        subagent_details = []
 
     if not any(line.strip() for line in all_lines):
         print(json.dumps({
@@ -212,11 +290,38 @@ def main() -> None:
             "repeated_sequences": [],
             "token_usage": {"input_tokens": 0, "output_tokens": 0},
             "tool_sequence_preview": "",
+            "subagent_summary": {
+                "subagent_count": 0,
+                "subagent_tool_call_count": 0,
+                "subagent_tool_counts": {},
+                "subagent_error_tools": {},
+                "subagents": [],
+            },
             "note": "empty transcript",
         }))
         return
 
     result = extract_tool_calls(all_lines)
+
+    # Add subagent breakdown when subagent data is available
+    if subagent_lines:
+        sub_result = extract_tool_calls(subagent_lines)
+        result["subagent_summary"] = {
+            "subagent_count": max(len(subagent_details), 1),
+            "subagent_tool_call_count": sub_result["tool_call_count"],
+            "subagent_tool_counts": sub_result["tool_counts"],
+            "subagent_error_tools": sub_result["error_tools"],
+            "subagents": subagent_details,
+        }
+    else:
+        result["subagent_summary"] = {
+            "subagent_count": 0,
+            "subagent_tool_call_count": 0,
+            "subagent_tool_counts": {},
+            "subagent_error_tools": {},
+            "subagents": [],
+        }
+
     print(json.dumps(result, indent=2))
 
 
