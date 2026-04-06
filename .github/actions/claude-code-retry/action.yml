@@ -42,6 +42,8 @@ runs:
     - id: attempt1
       continue-on-error: true
       uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
+      env:
+        CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE: 'true'
       with:
         claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
         prompt: ${{ inputs.prompt }}
@@ -61,6 +63,8 @@ runs:
       if: steps.attempt1.outcome == 'failure'
       continue-on-error: true
       uses: anthropics/claude-code-action@1eddb334cfa79fdb21ecbe2180ca1a016e8e7d47  # v1
+      env:
+        CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE: 'true'
       with:
         claude_code_oauth_token: ${{ inputs.claude_code_oauth_token }}
         prompt: ${{ inputs.prompt }}
