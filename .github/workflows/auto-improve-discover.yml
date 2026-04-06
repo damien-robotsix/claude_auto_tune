@@ -128,7 +128,9 @@ jobs:
             Write,
             Edit,
             Glob,
-            Grep
+            Grep,
+            WebFetch,
+            WebSearch
 
       - name: Upload Claude session transcript
         if: always()
