@@ -20,6 +20,7 @@ What `run.sh` does:
 1. Builds the `claude_auto_tune-claude` image from the repo `Dockerfile` (via `docker compose build`).
 2. Ensures the host-side bind-mount directories exist under `.claude-home/`.
 3. Runs the container interactively with the workspace mounted at `/workspace`.
+4. After the container exits, publishes local Claude Code session transcripts to the hub if the `hub.local_transcripts.enabled` flag is set in `auto_tune_config.yml`. Failures are non-fatal and never mask the session exit status.
 
 You can pass extra flags straight through to the Claude CLI:
 
