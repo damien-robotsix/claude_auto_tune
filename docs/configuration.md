@@ -65,22 +65,26 @@ hub:
   repo: "damien-robotsix/claude-auto-tune-hub"
   local_transcripts:
     enabled: true
+  ci_transcripts:
+    enabled: true
 ```
 
 - `hub.enabled` — master switch for every lane. When false, all hub scripts and workflows exit without touching anything.
 - `hub.repo` — slug of the shared hub repo. One repo hosts multiple disjoint data lanes (each lane owns its own directory tree or label set inside the hub).
 - `hub.local_transcripts.enabled` — independent switch for the local-transcript lane. When true, the **push side** ([`scripts/hub/push-local-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/push-local-transcripts.py)) copies new Claude Code session transcripts from `.claude-home/.claude/projects/` into `transcripts/<workspace-slug>/<YYYY-MM-DD>/` in the hub, and the **pull side** ([`scripts/hub/fetch-local-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/fetch-local-transcripts.py)) fetches them into `.scratch/hub-transcripts/` during CI so the `workflow-insights-extractor` can fold local-run signals into clustering. Defaults to `false` so both sides are a no-op until you opt in.
+- `hub.ci_transcripts.enabled` — independent switch for the CI-transcript lane. When true, every CI workflow pushes its Claude Code session transcripts to the hub repo after the session completes, giving the hub a **global view** of all transcripts across workspaces (both local Docker and CI). The push script ([`scripts/hub/push-ci-transcripts.py`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/scripts/hub/push-ci-transcripts.py)) is best-effort and never fails a workflow. Metadata includes `source: "ci"`, workflow name, run ID, and actor.
 
 ### `HUB_TOKEN` Actions secret
 
-All hub-interacting CI workflows require a `HUB_TOKEN` repository secret — a fine-grained PAT scoped to the hub repo with **`contents: read`** + **`issues: write`** permissions. The token is used by:
+All hub-interacting CI workflows require a `HUB_TOKEN` repository secret — a fine-grained PAT scoped to the hub repo with **`contents: write`** + **`issues: write`** permissions. The token is used by:
 
+- **All workflows** — to push CI session transcripts to the hub (`contents: write`).
 - **`auto-improve-discover.yml` / `auto-improve-verify.yml`** — to fetch local transcripts from the hub (`contents: read`).
 - **`hub-daily-sweep.yml`** — to create proposal issues and manage labels in the hub (`issues: write`).
 
 Each fork owner provisions this themselves:
 
-1. Create a fine-grained PAT at **Settings → Developer settings → Personal access tokens → Fine-grained tokens**, scoped to the hub repo with `contents: read` and `issues: write` permissions.
+1. Create a fine-grained PAT at **Settings → Developer settings → Personal access tokens → Fine-grained tokens**, scoped to the hub repo with `contents: write` and `issues: write` permissions.
 2. Add it as a repository secret named `HUB_TOKEN` under **Settings → Secrets and variables → Actions** on your workspace fork.
 
 When the secret is missing, workflows emit a `::warning::` annotation in the job summary and continue without hub interaction — no local-run signals are included and no proposals are created, but nothing breaks. The token is scoped to specific workflow steps and is **never** passed to the Claude Code step.
