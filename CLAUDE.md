@@ -22,6 +22,7 @@ This is a self-improving Claude Code workspace. Claude can be invoked locally (v
 - Suggest improvements only when they meaningfully improve the code
 - Be specific — reference exact lines and propose concrete fixes
 - To gather PR context, use `python3 scripts/collect-pr-review-context.py <pr-number>` instead of issuing multiple `gh api` / `gh pr view` Bash calls. It returns PR metadata, diff, linked issues, comments, and check-run status as a single JSON bundle.
+- **Do NOT issue parallel `gh pr *` or `gh api` Bash calls.** When multiple parallel `gh` Bash calls are dispatched in one assistant turn, the first failure cancels all siblings — wasting every queued call. Always gather PR context with a single `scripts/collect-pr-review-context.py` call. If you must use `gh` directly, issue calls sequentially, never in parallel.
 - **Do NOT spawn `Agent` subagents for simple lookups.** Use `Read`, `Grep`, or `Glob` directly — they are faster and cheaper. Each `Agent` subagent adds ~5k tokens of overhead. Specifically:
   - To read a file or check its contents → `Read`
   - To find files by name/pattern → `Glob`
