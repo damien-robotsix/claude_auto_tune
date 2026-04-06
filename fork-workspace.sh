@@ -166,6 +166,7 @@ COPY_ITEMS=(
     run.sh
     .gitignore
     CLAUDE.md
+    README.md
     auto_tune_config.yml
     scripts
     docs
@@ -237,6 +238,61 @@ content = re.sub(
 with open(sys.argv[1], 'w') as f:
     f.write(content)
 " "$CLAUDE_MD"
+
+# ── Customize README.md ─────────────────────────────────────────────────
+
+README="$TARGET_DIR/README.md"
+if [ -f "$README" ]; then
+    python3 -c "
+import sys
+project_name = sys.argv[1]
+project_desc = sys.argv[2]
+github_repo  = sys.argv[3]
+
+lines = []
+lines.append('# ' + project_name)
+lines.append('')
+lines.append(project_desc)
+lines.append('')
+lines.append('## Quick start')
+lines.append('')
+lines.append('Local (Docker):')
+lines.append('')
+lines.append('\`\`\`bash')
+lines.append('./run.sh')
+lines.append('\`\`\`')
+lines.append('')
+lines.append('CI (GitHub Actions):')
+lines.append('')
+lines.append('\`\`\`bash')
+lines.append('gh auth login -h github.com -s repo,workflow')
+lines.append('# then, inside Claude Code CLI:')
+lines.append('/install-github-app')
+lines.append('\`\`\`')
+lines.append('')
+lines.append('Then mention \`@claude\` in any issue or PR comment.')
+lines.append('')
+lines.append('## Documentation')
+lines.append('')
+if github_repo:
+    owner, repo = github_repo.split('/', 1)
+    lines.append('Full documentation is published to GitHub Pages:')
+    lines.append('')
+    lines.append(f'**https://{owner}.github.io/{repo}/**')
+    lines.append('')
+lines.append('Source lives in [\`docs/\`](docs/):')
+lines.append('')
+lines.append('- [Quick start](docs/quickstart.md)')
+lines.append('- [Configuration](docs/configuration.md)')
+lines.append('- [Workflows](docs/workflows.md)')
+lines.append('- [Architecture](docs/architecture.md)')
+lines.append('')
+
+with open(sys.argv[4], 'w') as f:
+    f.write('\n'.join(lines))
+" "$PROJECT_NAME" "$PROJECT_DESC" "$GITHUB_REPO" "$README"
+    info "README.md customized."
+fi
 
 # ── Customize docker-compose.yml ────────────────────────────────────────
 
