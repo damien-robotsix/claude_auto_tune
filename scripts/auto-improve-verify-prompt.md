@@ -137,6 +137,11 @@ key matches this issue. Record:
 - `after_count` — the number of in-window observations the subagent
   found that match this fingerprint. If the candidate is absent from the
   returned array (or the array is empty), `after_count = 0`.
+  **For `reliability` category issues whose fingerprint targets error
+  rates**, prefer the `controllable` count from `error_categories` over
+  the raw total. Network/auth errors (HTTP 401, TLS timeouts, git push
+  auth) are infrastructure failures not addressable by prompt guidance
+  and should not count toward the after signal.
 - `after_evidence` — up to 3 short excerpts from in-window runs.
 - `WORKFLOWS_PARSED` and `CONVERSATIONS_ANALYZED` from the subagent's
   `>>>` stdout lines. If `WORKFLOWS_PARSED == 0`, no runs exist in the
