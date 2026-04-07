@@ -70,7 +70,9 @@ jobs:
 
             Rules:
             1. **High confidence** → execute the action (create PR, merge,
-               comment, etc.) and explain what you did.
+               enable auto-merge, comment, etc.) and explain what you did.
+               For PR reviews: if all checks have passed, merge immediately;
+               if checks are still running, enable auto-merge instead.
             2. **Medium confidence** → leave a comment describing what you
                *would* do and why, then ask the maintainer for confirmation.
                Do NOT take the action.
@@ -88,6 +90,12 @@ jobs:
             - Comment on issues or pull requests with feedback or analysis.
             - Merge a pull request (prefer squash merge) when CI is green and
               the PR is approved or trivially correct.
+            - **Enable auto-merge** on a PR you reviewed at high confidence
+              when some checks are still in progress. Use:
+              `gh pr merge <number> --auto --squash`
+              This tells GitHub to merge automatically once all required
+              checks pass. Prefer this over waiting or asking the maintainer
+              to merge manually.
             - Close stale or duplicate issues with an explanation.
 
             ## Safety rules
