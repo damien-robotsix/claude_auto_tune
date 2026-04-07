@@ -40,13 +40,24 @@ keep the error rate low:
 
 ## Gathering GitHub context efficiently
 
-These rules apply to **all agents** (review, hub-local, auto-improve, general),
-not just code review sessions.
+These rules apply to **all agents** (review, hub-daily-sweep, hub-local,
+auto-improve, general), not just code review sessions.
 
+- **Hard limit: never make more than 4 consecutive Bash calls.** After
+  every 3–4 Bash calls, interleave a non-Bash tool (Read, Write, Grep,
+  Glob) — even if just to inspect the output of the previous call. If
+  you are about to issue a 5th consecutive Bash call, stop and
+  restructure: batch the remaining work into a single `python3 -c`
+  script, or use a deterministic script from `scripts/` or
+  `scripts/hub/`.
 - **For PR context** (metadata, diff, linked issues, comments, check-run
   status), use `python3 scripts/collect-pr-review-context.py <pr-number>`
   instead of issuing multiple `gh api` / `gh pr view` / `gh pr diff` Bash
   calls. It returns everything in a single JSON bundle.
+- **For hub operations**, use the scripts under `scripts/hub/*.py`
+  (`list-recent-commits.py`, `hub-search.py`, `hub-open-proposal.py`,
+  etc.) instead of ad-hoc `gh api` / `gh issue` calls. These scripts
+  exist specifically to avoid long Bash chains.
 - **Never issue parallel `gh` Bash calls.** When multiple `gh pr *` or
   `gh api` calls are dispatched in one assistant turn, the first failure
   cancels all siblings — wasting every queued call. If you must use `gh`
@@ -55,6 +66,7 @@ not just code review sessions.
   5+ sequential `gh` calls (e.g., polling `gh run view`, looping over
   `gh issue view`, or calling `gh api` repeatedly), stop and consider:
   - Can `scripts/collect-pr-review-context.py` provide this in one call?
+  - Can a `scripts/hub/*.py` script handle this operation?
   - Can a single `gh api` call with GraphQL replace multiple REST calls?
   - Can a `python3 -c` script batch the work into one process?
 - **Do NOT spawn `Agent` subagents for simple lookups.** Use `Read`, `Grep`,
