@@ -31,9 +31,6 @@ CLAUDE.md                               -> docs/architecture.md
 # Quickstart — top-level onboarding surface
 README.md                               -> docs/quickstart.md
 
-# CI sandbox rules mirror a single source file; drift is unlikely to
-# come from unrelated code changes.
-docs/ci-sandbox-rules.md                -> (skip)
 
 # The agent's own outputs never drive further updates.
 docs/**                                 -> (skip)

@@ -49,9 +49,9 @@ workflow. That lives in the sibling `hub-sync` workflow (later phase).
   *pattern* (not the specific fix) is reusable.
 - **Never open adoption PRs from this workflow.** Your only write
   operation is creating issues in the hub repo.
-- Observe the sandbox rules in `docs/ci-sandbox-rules.md`: one operation
-  per `Bash` call, no `2>&1`, no redirection outside the working
-  directory.
+- Observe the CI sandbox rules in the "CI sandbox — Bash command rules"
+  section of `CLAUDE.md`: one operation per `Bash` call, no `2>&1`, no
+  redirection outside the working directory.
 
 ## Procedure
 
