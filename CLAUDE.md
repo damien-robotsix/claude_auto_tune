@@ -106,8 +106,8 @@ auto-improve, general), not just code review sessions.
 
 # CI sandbox — Bash command rules
 
-When running inside `anthropics/claude-code-action@v1` (the claude.yml,
-claude-code-review.yml, claude-agent.yml, auto-improve-discover.yml,
+When running inside `anthropics/claude-code-action@v1` (the
+claude-agent.yml, claude-code-review.yml, auto-improve-discover.yml,
 auto-improve-verify.yml, hub-daily-sweep.yml, hub-sync.yml, and hub-adopt.yml workflows), Bash tool calls are
 restricted to the `--allowed-tools` list in the workflow and are further
 filtered by a sandbox. To avoid wasting tool calls on rejected commands,
