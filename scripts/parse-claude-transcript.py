@@ -33,6 +33,8 @@ from collections import Counter
 # stays small.
 TOP_N = 20
 SEQUENCE_PREVIEW_LEN = 100
+ERROR_SAMPLE_MAX = 10
+ERROR_SAMPLE_TRUNCATE = 200
 
 
 def _extract_error_text(block: dict) -> str:
@@ -90,6 +92,7 @@ def extract_tool_calls(lines: list[str]) -> dict:
     tool_counter: Counter = Counter()
     error_tools: list[str] = []
     error_categories: list[str] = []
+    error_samples: list[dict] = []
     tool_sequences: list[str] = []
     total_input_tokens = 0
     total_output_tokens = 0
@@ -132,10 +135,16 @@ def extract_tool_calls(lines: list[str]) -> dict:
             for block in content if isinstance(content, list) else []:
                 if isinstance(block, dict) and block.get("type") == "tool_result":
                     if block.get("is_error") and tool_sequences:
-                        error_tools.append(tool_sequences[-1])
+                        tool_name = tool_sequences[-1]
+                        error_tools.append(tool_name)
                         error_text = _extract_error_text(block)
                         category = _categorize_error(error_text)
                         error_categories.append(category)
+                        if category == "controllable" and len(error_samples) < ERROR_SAMPLE_MAX:
+                            snippet = error_text[:ERROR_SAMPLE_TRUNCATE]
+                            if len(error_text) > ERROR_SAMPLE_TRUNCATE:
+                                snippet += "…"
+                            error_samples.append({"tool": tool_name, "message": snippet})
 
     # Repeated consecutive-run detection: runs of 3+ identical calls in a
     # row are a strong signal that a loop could be replaced by a single
@@ -173,6 +182,7 @@ def extract_tool_calls(lines: list[str]) -> dict:
             "controllable": controllable_errors,
             "network_auth": network_auth_errors,
         },
+        "controllable_error_samples": error_samples,
         "repeated_sequences": repeated[:TOP_N],
         "token_usage": {
             "input_tokens": total_input_tokens,
@@ -287,6 +297,8 @@ def main() -> None:
             "top_tools": [],
             "tool_counts": {},
             "error_tools": {},
+            "error_categories": {"total": 0, "controllable": 0, "network_auth": 0},
+            "controllable_error_samples": [],
             "repeated_sequences": [],
             "token_usage": {"input_tokens": 0, "output_tokens": 0},
             "tool_sequence_preview": "",
