@@ -21,6 +21,15 @@ workflow. That lives in the sibling `hub-sync` workflow (later phase).
   only place judgment happens. The scripts under `scripts/hub/*.py` are
   deterministic `gh` wrappers. Never replace them with ad-hoc `gh` calls
   for the operations they already cover.
+- **IMPORTANT — avoid long consecutive Bash chains.** Do not issue more
+  than 4 consecutive Bash calls without interleaving a non-Bash tool
+  (Read, Write, Grep, Glob). The procedure below is designed so that
+  each Bash call (a script invocation) is followed by a Read or Write
+  step. If you find yourself making 5+ Bash calls in a row, stop and
+  check: are you using the hub scripts, or falling back to raw `gh`
+  calls? Use the scripts. Use the `Write` tool (not `echo`/`cat` via
+  Bash) to create `.scratch/proposal-*.json` files. Use `Read` to
+  inspect script output when needed.
 - **One proposal per logical change, at most.** If multiple commits
   describe the same improvement (e.g. a fix + follow-up), bundle them
   into a single proposal and list every relevant commit SHA in
@@ -63,8 +72,9 @@ workflow. That lives in the sibling `hub-sync` workflow (later phase).
    improvement (same files touched + same intent), skip — log that you
    skipped and why.
 
-4. **Draft a proposal.** For each surviving candidate, write a JSON file
-   under `./.scratch/proposal-<short-sha>.json` with this shape:
+4. **Draft a proposal.** For each surviving candidate, use the `Write`
+   tool (not Bash `echo`/`cat`) to create a JSON file under
+   `./.scratch/proposal-<short-sha>.json` with this shape:
 
    ```json
    {

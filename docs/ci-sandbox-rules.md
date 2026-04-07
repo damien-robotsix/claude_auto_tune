@@ -33,6 +33,10 @@ follow these rules:
   failure cancels all siblings — every queued call is wasted. Use
   `scripts/collect-pr-review-context.py` for PR context, or issue `gh`
   calls one at a time, sequentially.
+- **Limit consecutive Bash calls to 4.** After 3–4 Bash calls,
+  interleave a non-Bash tool (Read, Write, Grep, Glob). If you need
+  more Bash calls, batch them into a single `python3 -c` script or use
+  a deterministic script from `scripts/` or `scripts/hub/`.
 - **Workflow files are effectively read-only.** The GitHub App token this
   agent runs under does not carry the `workflows` permission, so pushes
   that touch `.github/workflows/**` are rejected at the remote. If a fix
@@ -55,3 +59,4 @@ These patterns cause the majority of Bash/Edit errors in CI runs:
 | Edit unread file | `Edit(file="new.md", ...)` | `Read("new.md")` first |
 | `cat` / `head` / `grep` via Bash | `cat README.md` | Use the `Read` / `Grep` dedicated tools |
 | Chain commands with `&&` | `mkdir -p dir && echo done` | Use two separate Bash calls or a single `python3 -c` |
+| 5+ consecutive Bash calls | `gh api ...` x20 in a row | Interleave Read/Write/Grep, or batch into `python3 -c` |
