@@ -24,7 +24,7 @@ Phase 3.
   are posting comments and applying labels on hub issues.
 - **Skip proposals from your own repo.** If a proposal has
   `origin:<THIS_REPO>`, skip it — you don't evaluate your own proposals.
-- Observe the sandbox rules in `docs/ci-sandbox-rules.md`.
+- Observe the CI sandbox rules in the "CI sandbox — Bash command rules" section of `CLAUDE.md`.
 
 ## Procedure
 

@@ -29,10 +29,6 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Inject CI sandbox rules into CLAUDE.md
-        run: |
-          printf '\n\n' >> CLAUDE.md
-          cat docs/ci-sandbox-rules.md >> CLAUDE.md
 
       - name: Resolve model from auto_tune_config.yml
         id: model

@@ -34,7 +34,7 @@ proposed change in this workspace.
 - **Do not modify files unrelated to the proposal.** Keep the diff minimal
   and focused.
 - **Do not force-push or rewrite history.**
-- Observe the sandbox rules in `docs/ci-sandbox-rules.md`.
+- Observe the CI sandbox rules in the "CI sandbox — Bash command rules" section of `CLAUDE.md`.
 
 ## Procedure
 
