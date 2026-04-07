@@ -47,6 +47,15 @@ not just code review sessions.
   status), use `python3 scripts/collect-pr-review-context.py <pr-number>`
   instead of issuing multiple `gh api` / `gh pr view` / `gh pr diff` Bash
   calls. It returns everything in a single JSON bundle.
+- **For commit context** (sha, message, author, files, diff) in the
+  hub-daily-sweep workflow, use
+  `python3 scripts/hub/list-recent-commits.py --since "$LOOKBACK"` —
+  it bundles all commit details in one call. Do NOT make individual
+  `gh api repos/.../commits/...` calls to fetch diffs or file lists;
+  `list-recent-commits.py` already includes them.
+- **For hub dedup and proposals**, use `scripts/hub/hub-search.py` and
+  `scripts/hub/hub-open-proposal.py`. These are deterministic `gh`
+  wrappers — never reimplement their logic with ad-hoc `gh` calls.
 - **Never issue parallel `gh` Bash calls.** When multiple `gh pr *` or
   `gh api` calls are dispatched in one assistant turn, the first failure
   cancels all siblings — wasting every queued call. If you must use `gh`
@@ -55,6 +64,8 @@ not just code review sessions.
   5+ sequential `gh` calls (e.g., polling `gh run view`, looping over
   `gh issue view`, or calling `gh api` repeatedly), stop and consider:
   - Can `scripts/collect-pr-review-context.py` provide this in one call?
+  - Can `scripts/hub/list-recent-commits.py` provide commit context in one call?
+  - Can `scripts/hub/hub-search.py` or `hub-open-proposal.py` handle it?
   - Can a single `gh api` call with GraphQL replace multiple REST calls?
   - Can a `python3 -c` script batch the work into one process?
 - **Do NOT spawn `Agent` subagents for simple lookups.** Use `Read`, `Grep`,

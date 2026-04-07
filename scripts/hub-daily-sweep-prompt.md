@@ -17,6 +17,14 @@ workflow. That lives in the sibling `hub-sync` workflow (later phase).
 
 ## Guardrails
 
+> **IMPORTANT — use scripts, not raw `gh` calls.** Your ONLY Bash calls
+> should be the three deterministic scripts listed in the Procedure section
+> below (`list-recent-commits.py`, `hub-search.py`, `hub-open-proposal.py`).
+> `list-recent-commits.py` already returns sha, message, author, date,
+> files, and diff for every commit — do NOT issue additional `gh api` calls
+> to fetch commit details, diffs, or file lists. If you find yourself
+> making more than one `gh` Bash call per commit, you are doing it wrong.
+
 - **Scripts never call an LLM.** You, running inside the action, are the
   only place judgment happens. The scripts under `scripts/hub/*.py` are
   deterministic `gh` wrappers. Never replace them with ad-hoc `gh` calls
