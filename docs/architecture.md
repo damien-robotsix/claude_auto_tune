@@ -11,13 +11,14 @@ The workspace is intentionally small. Everything you need to understand it fits 
 
 ```
 .claude/settings.json     # Shared Claude Code settings (tracked in git)
-.github/workflows/        # CI workflows (7): claude, claude-code-review, auto-improve-discover, auto-improve-verify, hub-daily-sweep, docs-sync, config-sanity
+.github/workflows/        # CI workflows (11): claude, claude-agent, claude-code-review, auto-improve-discover, auto-improve-verify, hub-daily-sweep, hub-sync, hub-adopt, clean-branches, docs-sync, config-sanity
 CLAUDE.md                 # Agent instructions read by Claude Code
 Dockerfile                # Container image used for local runs
 docker-compose.yml        # Build/orchestration for the local image
 run.sh                    # Entry point for local sessions
 auto_tune_config.yml      # Workspace configuration (models, auto-improve, issue tracking)
-scripts/                  # Log/transcript parsing, auto-improve discover/verify prompts, docs-sync prompt
+fork-workspace.sh         # Create a customized fork of this workspace (interactive)
+scripts/                  # Parsers, agent prompts, hub helpers, stale-branch cleanup
 docs/                     # This documentation, published to GitHub Pages
 ```
 
@@ -37,6 +38,22 @@ The self-improvement loop is split into two workflows so that problem **discover
 
 The split guarantees that a fix is only considered "done" once a dedicated per-issue run has actually compared the world before and after the fix, rather than being closed automatically the moment a PR merges.
 
+Both discover and verify use two additive **triage flags** alongside the state labels: `auto-improve:needs-human` (issue cannot be auto-fixed) and `auto-improve:waiting-data` (not enough post-fix runs to decide). These flags coexist with exactly one state label and are removed when they no longer apply. The verify workflow also filters reliability-category issues to **controllable** errors only — network/auth failures are excluded from the before/after comparison.
+
 A second, narrower loop — the daily **docs-sync** agent defined by `scripts/docs-sync-prompt.md` — keeps pages under `docs/` aligned with recent `main` commits via the routing rules in [`docs/.docsrules`](https://github.com/damien-robotsix/claude_auto_tune/blob/main/docs/.docsrules). It never touches code.
 
-Keeping both loops narrow and the surface area small is deliberate: it makes each improvement easy to review and easy to revert.
+## Cross-workspace hub
+
+Beyond the local self-improvement loop, a set of hub workflows share improvements across independent workspace forks via the shared [`claude-auto-tune-hub`](https://github.com/damien-robotsix/claude-auto-tune-hub) repo (configured under the `hub:` config key — see [Configuration](configuration.md)):
+
+- **Hub daily sweep** (`hub-daily-sweep.yml`, `scripts/hub-daily-sweep-prompt.md`) — scans recent `main` commits, creates proposal issues in the hub for changes that could benefit other workspaces.
+- **Hub sync** (`hub-sync.yml`, `scripts/hub-sync-prompt.md`) — Phase 2: reviews open hub proposals, posts a structured verdict comment (`adopt` / `reject` / `defer`), and labels them.
+- **Hub adopt** (`hub-adopt.yml`, `scripts/hub-adopt-prompt.md`) — Phase 3: for proposals labelled `adopt`, creates a PR that adapts the proposed change to the local workspace.
+
+## Other automation
+
+- **`claude-agent.yml`** — autonomous agent workflow triggered by `@claude` mentions in issues, with a confidence gate.
+- **`clean-branches.yml`** / `scripts/clean-stale-branches.py` — automated cleanup of remote branches with no associated open PR.
+- **`fork-workspace.sh`** — interactive script to create a customized copy of this workspace as a new repo.
+
+Keeping each loop narrow and the surface area small is deliberate: it makes each improvement easy to review and easy to revert.
