@@ -32,9 +32,9 @@ inputs:
     required: false
     default: ''
   retry_delay:
-    description: 'Seconds to wait before retrying (default: 3600)'
+    description: 'Seconds to wait before retrying (default: 120)'
     required: false
-    default: '3600'
+    default: '120'
 
 runs:
   using: composite
