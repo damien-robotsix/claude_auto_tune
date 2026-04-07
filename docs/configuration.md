@@ -17,6 +17,7 @@ models:
   code_review: "opus"          # code-review workflow
   auto_improve: "opus"         # auto-improve discover workflow
   auto_improve_verify: "opus"  # per-issue auto-improve verify workflow
+  claude_agent: "opus"         # autonomous claude-agent workflow
 ```
 
 You can use a short alias (`haiku`, `sonnet`, `opus`) or pin a full model ID (for example `claude-sonnet-4-6`).
