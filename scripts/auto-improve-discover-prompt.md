@@ -268,7 +268,12 @@ For each issue currently in state `raised` that you can fix automatically
 with a small, targeted code change:
 
 1. `git checkout main && git pull`
-2. Create a branch: `auto-improve/<date>-<fingerprint-key>`
+2. Delete any stale local branch with the target name, then create a fresh
+   one:
+   ```bash
+   git branch -D auto-improve/<date>-<fingerprint-key> 2>/dev/null || true
+   git checkout -b auto-improve/<date>-<fingerprint-key>
+   ```
 3. Make the **actual** edits (no `proposals/` directory). Keep it ≤ 5 files.
 4. Commit with a clear "why" message.
 5. Push and open a PR:
